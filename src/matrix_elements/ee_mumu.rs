@@ -50,7 +50,7 @@ impl MatrixElement for EpEmToMuPMuM {
 
             // Photon propagator: 1/s
             // Z propagator: 1/(s - M_Z^2 + i*M_Z*Gamma_Z) — use Breit-Wigner
-            let gamma_z = 2.4955; // Z width
+            let gamma_z = GAMMA_Z;
             let denom_z_re = s - M_Z * M_Z;
             let denom_z_im = M_Z * gamma_z;
             let denom_z_sq = denom_z_re * denom_z_re + denom_z_im * denom_z_im;

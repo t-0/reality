@@ -58,6 +58,7 @@ pub struct EventSample {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::couplings::constants::*;
 
     #[test]
     fn test_event_serialization() {
@@ -70,25 +71,25 @@ mod tests {
                     pdg_id: -11,
                     status: ParticleStatus::Incoming,
                     momentum: [45.6, 0.0, 0.0, 45.6],
-                    mass: 0.000511,
+                    mass: M_ELECTRON,
                 },
                 Particle {
                     pdg_id: 11,
                     status: ParticleStatus::Incoming,
                     momentum: [45.6, 0.0, 0.0, -45.6],
-                    mass: 0.000511,
+                    mass: M_ELECTRON,
                 },
                 Particle {
                     pdg_id: -13,
                     status: ParticleStatus::Outgoing,
                     momentum: [45.6, 30.0, 20.0, 10.0],
-                    mass: 0.10566,
+                    mass: M_MUON,
                 },
                 Particle {
                     pdg_id: 13,
                     status: ParticleStatus::Outgoing,
                     momentum: [45.6, -30.0, -20.0, -10.0],
-                    mass: 0.10566,
+                    mass: M_MUON,
                 },
             ],
         };

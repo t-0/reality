@@ -31,23 +31,23 @@ impl EpEmToQQbar {
 
     /// Up-type quark (u, c): charge = +2/3
     pub fn up() -> Self {
-        Self::new(PdgId::UP, 2.0 / 3.0, 0.00216)
+        Self::new(PdgId::UP, 2.0 / 3.0, M_UP)
     }
 
     pub fn down() -> Self {
-        Self::new(PdgId::DOWN, -1.0 / 3.0, 0.00467)
+        Self::new(PdgId::DOWN, -1.0 / 3.0, M_DOWN)
     }
 
     pub fn charm() -> Self {
-        Self::new(PdgId::CHARM, 2.0 / 3.0, 1.27)
+        Self::new(PdgId::CHARM, 2.0 / 3.0, M_CHARM)
     }
 
     pub fn strange() -> Self {
-        Self::new(PdgId::STRANGE, -1.0 / 3.0, 0.0934)
+        Self::new(PdgId::STRANGE, -1.0 / 3.0, M_STRANGE)
     }
 
     pub fn bottom() -> Self {
-        Self::new(PdgId::BOTTOM, -1.0 / 3.0, 4.18)
+        Self::new(PdgId::BOTTOM, -1.0 / 3.0, M_BOTTOM)
     }
 }
 
@@ -99,12 +99,12 @@ impl MatrixElement for EpEmToQQbar {
 ///   = N_c * sum_q Q_q^2 (for quarks with 2*m_q < sqrt_s)
 pub fn r_ratio(sqrt_s: f64) -> f64 {
     let charges = [
-        (2.0 / 3.0, 0.00216),  // u
-        (-1.0 / 3.0, 0.00467), // d
-        (-1.0 / 3.0, 0.0934),  // s
-        (2.0 / 3.0, 1.27),     // c
-        (-1.0 / 3.0, 4.18),    // b
-        (2.0 / 3.0, 172.57),   // t
+        (2.0 / 3.0, M_UP),     // u
+        (-1.0 / 3.0, M_DOWN),  // d
+        (-1.0 / 3.0, M_STRANGE), // s
+        (2.0 / 3.0, M_CHARM),  // c
+        (-1.0 / 3.0, M_BOTTOM), // b
+        (2.0 / 3.0, M_TOP),    // t
     ];
 
     let mut r = 0.0;

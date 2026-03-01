@@ -72,8 +72,41 @@ pub const M_BOTTOM: f64 = 4.18;
 /// Charm quark mass (GeV).
 pub const M_CHARM: f64 = 1.27;
 
+/// Strange quark mass (GeV).
+pub const M_STRANGE: f64 = 0.0934;
+
+/// Up quark mass (GeV).
+pub const M_UP: f64 = 0.00216;
+
+/// Down quark mass (GeV).
+pub const M_DOWN: f64 = 0.00467;
+
+/// Electron mass (GeV).
+pub const M_ELECTRON: f64 = 0.000511;
+
+/// Muon mass (GeV).
+pub const M_MUON: f64 = 0.10566;
+
 /// Tau lepton mass (GeV).
 pub const M_TAU: f64 = 1.777;
+
+/// Z boson total width (GeV).
+pub const GAMMA_Z: f64 = 2.4955;
+
+/// W boson total width (GeV).
+pub const GAMMA_W: f64 = 2.085;
+
+/// Higgs boson total width (GeV).
+pub const GAMMA_H: f64 = 0.00407;
+
+/// Top quark total width (GeV).
+pub const GAMMA_TOP: f64 = 1.42;
+
+/// hbar in GeV*s.
+pub const HBAR_GEV_S: f64 = 6.582e-25;
+
+/// CKM matrix element |V_tb|^2.
+pub const VTB_SQUARED: f64 = 0.999118 * 0.999118;
 
 /// Number of colors N_c.
 pub const N_C: f64 = 3.0;

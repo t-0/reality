@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn test_branching_ratio() {
         let width_gg = HiggsToGammaGamma.partial_width();
-        let total_width = 0.00407; // Higgs total width in GeV
+        let total_width = GAMMA_H;
         let br = width_gg / total_width;
         // Expected: BR ~ 2.3e-3
         assert!(

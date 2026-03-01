@@ -89,6 +89,7 @@ pub fn two_body_at_angle(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::couplings::constants::M_W;
 
     #[test]
     fn test_two_body_momentum_massless() {
@@ -113,8 +114,8 @@ mod tests {
     fn test_generate_conserves_momentum() {
         let mut rng = rand::rng();
         let sqrt_s = 200.0;
-        let m1 = 80.377;
-        let m2 = 80.377;
+        let m1 = M_W;
+        let m2 = M_W;
 
         let (p3, p4) = generate_two_body(&mut rng, sqrt_s, m1, m2).unwrap();
         let total = p3 + p4;

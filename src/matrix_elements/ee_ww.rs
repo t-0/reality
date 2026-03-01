@@ -33,7 +33,7 @@ impl MatrixElement for EpEmToWpWm {
         // Propagators
         let prop_gamma = 1.0 / s; // photon s-channel
         let mz2 = M_Z * M_Z;
-        let gamma_z = 2.4955;
+        let gamma_z = GAMMA_Z;
         let denom_z = (s - mz2) * (s - mz2) + (M_Z * gamma_z) * (M_Z * gamma_z);
         let prop_z_re = (s - mz2) / denom_z;
         let prop_z_im = -M_Z * gamma_z / denom_z;

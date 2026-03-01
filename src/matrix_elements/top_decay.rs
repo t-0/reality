@@ -20,7 +20,7 @@ impl TopDecay {
     pub fn partial_width(&self) -> f64 {
         let mt = M_TOP;
         let mw = M_W;
-        let vtb2 = 0.999118_f64.powi(2); // |V_tb|^2
+        let vtb2 = VTB_SQUARED;
 
         let r = mw * mw / (mt * mt); // r = m_W^2 / m_t^2
 
@@ -35,7 +35,7 @@ impl TopDecay {
         let mt = M_TOP;
         let mw = M_W;
         let mb = M_BOTTOM;
-        let vtb2 = 0.999118_f64.powi(2);
+        let vtb2 = VTB_SQUARED;
 
         let x_w = mw * mw / (mt * mt);
         let x_b = mb * mb / (mt * mt);
@@ -66,7 +66,7 @@ impl MatrixElement for TopDecay {
         // In the rest frame with massless b:
         let mt2 = s;
         let mw2 = M_W * M_W;
-        let vtb2 = 0.999118_f64.powi(2);
+        let vtb2 = VTB_SQUARED;
         let g2 = 4.0 * PI * ALPHA_EM / SIN2_THETA_W;
 
         // Simplified: |M|^2_avg = g^2 * |Vtb|^2 * mt2 * (1 - mw2/mt2)^2 * (1 + 2*mw2/mt2)
@@ -132,7 +132,7 @@ mod tests {
         // In natural units: tau = 1/Gamma (in GeV^-1)
         // Convert: 1 GeV^-1 = 6.582e-25 s
         let tau_gev = 1.0 / width;
-        let tau_seconds = tau_gev * 6.582e-25;
+        let tau_seconds = tau_gev * HBAR_GEV_S;
         // Expected: ~5e-25 s
         assert!(
             tau_seconds > 1e-25 && tau_seconds < 1e-24,

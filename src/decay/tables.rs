@@ -86,7 +86,7 @@ pub fn higgs_decay_table() -> DecayTable {
     channels.push((vec![], "tau+ tau-".to_string(), partial_width::h_to_ffbar(M_TAU, 1.0)));
 
     // H -> mu+ mu-
-    channels.push((vec![], "mu+ mu-".to_string(), partial_width::h_to_ffbar(0.10566, 1.0)));
+    channels.push((vec![], "mu+ mu-".to_string(), partial_width::h_to_ffbar(M_MUON, 1.0)));
 
     // H -> gamma gamma (loop)
     channels.push((vec![], "gamma gamma".to_string(), HiggsToGammaGamma.partial_width()));
@@ -96,7 +96,7 @@ pub fn higgs_decay_table() -> DecayTable {
     // H -> WW*: ~21.5% of total width
     // H -> ZZ*: ~2.6% of total width
     // Using total width = 4.07 MeV
-    let total_approx = 0.00407;
+    let total_approx = GAMMA_H;
     channels.push((vec![], "W W*".to_string(), 0.215 * total_approx));
     channels.push((vec![], "Z Z*".to_string(), 0.026 * total_approx));
 
@@ -124,7 +124,7 @@ mod tests {
         let table = w_boson_decay_table();
         // Expected: ~2.085 GeV
         assert!(
-            (table.total_width - 2.085).abs() < 0.15,
+            (table.total_width - GAMMA_W).abs() < 0.15,
             "Gamma_W = {} GeV",
             table.total_width
         );
@@ -147,7 +147,7 @@ mod tests {
         let table = z_boson_decay_table();
         // Expected: ~2.4955 GeV
         assert!(
-            (table.total_width - 2.4955).abs() < 0.1,
+            (table.total_width - GAMMA_Z).abs() < 0.1,
             "Gamma_Z = {} GeV",
             table.total_width
         );

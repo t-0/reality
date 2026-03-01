@@ -116,7 +116,7 @@ pub fn print_decay_table(particle: &str) {
     println!("Total width: {:.4e} GeV", table.total_width);
     if table.total_width > 0.0 {
         let tau_gev = 1.0 / table.total_width;
-        let tau_s = tau_gev * 6.582e-25;
+        let tau_s = tau_gev * HBAR_GEV_S;
         println!("Lifetime:    {:.4e} s", tau_s);
     }
     println!();

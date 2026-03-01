@@ -38,7 +38,7 @@ pub fn h_to_ffbar(fermion_mass: f64, n_c: f64) -> f64 {
 pub fn top_to_wb() -> f64 {
     let mt = M_TOP;
     let mw = M_W;
-    let vtb2 = 0.999118_f64.powi(2);
+    let vtb2 = VTB_SQUARED;
     let r = mw * mw / (mt * mt);
     G_FERMI * mt * mt * mt / (8.0 * PI * 2.0_f64.sqrt()) * vtb2 * (1.0 - r).powi(2) * (1.0 + 2.0 * r)
 }

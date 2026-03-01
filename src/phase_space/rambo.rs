@@ -163,6 +163,7 @@ fn factorial(n: u32) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::couplings::constants::M_W;
 
     #[test]
     fn test_rambo_massless_2body() {
@@ -186,7 +187,7 @@ mod tests {
     fn test_rambo_massive_2body() {
         let mut rng = rand::rng();
         let sqrt_s = 200.0;
-        let masses = [80.377, 80.377]; // W+W-
+        let masses = [M_W, M_W]; // W+W-
 
         let (momenta, weight) = generate_rambo(&mut rng, sqrt_s, &masses).unwrap();
         assert_eq!(momenta.len(), 2);

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+use crate::couplings::constants::*;
+
 use super::pdg::PdgId;
 use super::properties::{ColorRep, ParticleData, Spin};
 
@@ -14,7 +16,7 @@ fn build_catalog() -> HashMap<PdgId, ParticleData> {
             pdg_id: PdgId::UP,
             name: "u",
             anti_name: Some("u~"),
-            mass: 0.00216,
+            mass: M_UP,
             width: None,
             charge: 2.0 / 3.0,
             spin: Spin::Half,
@@ -26,7 +28,7 @@ fn build_catalog() -> HashMap<PdgId, ParticleData> {
             pdg_id: PdgId::DOWN,
             name: "d",
             anti_name: Some("d~"),
-            mass: 0.00467,
+            mass: M_DOWN,
             width: None,
             charge: -1.0 / 3.0,
             spin: Spin::Half,
@@ -38,7 +40,7 @@ fn build_catalog() -> HashMap<PdgId, ParticleData> {
             pdg_id: PdgId::CHARM,
             name: "c",
             anti_name: Some("c~"),
-            mass: 1.27,
+            mass: M_CHARM,
             width: None,
             charge: 2.0 / 3.0,
             spin: Spin::Half,
@@ -50,7 +52,7 @@ fn build_catalog() -> HashMap<PdgId, ParticleData> {
             pdg_id: PdgId::STRANGE,
             name: "s",
             anti_name: Some("s~"),
-            mass: 0.0934,
+            mass: M_STRANGE,
             width: None,
             charge: -1.0 / 3.0,
             spin: Spin::Half,
@@ -62,8 +64,8 @@ fn build_catalog() -> HashMap<PdgId, ParticleData> {
             pdg_id: PdgId::TOP,
             name: "t",
             anti_name: Some("t~"),
-            mass: 172.57,
-            width: Some(1.42),
+            mass: M_TOP,
+            width: Some(GAMMA_TOP),
             charge: 2.0 / 3.0,
             spin: Spin::Half,
             color: ColorRep::Triplet,
@@ -74,7 +76,7 @@ fn build_catalog() -> HashMap<PdgId, ParticleData> {
             pdg_id: PdgId::BOTTOM,
             name: "b",
             anti_name: Some("b~"),
-            mass: 4.18,
+            mass: M_BOTTOM,
             width: None,
             charge: -1.0 / 3.0,
             spin: Spin::Half,
@@ -87,7 +89,7 @@ fn build_catalog() -> HashMap<PdgId, ParticleData> {
             pdg_id: PdgId::ELECTRON,
             name: "e-",
             anti_name: Some("e+"),
-            mass: 0.000511,
+            mass: M_ELECTRON,
             width: None,
             charge: -1.0,
             spin: Spin::Half,
@@ -111,7 +113,7 @@ fn build_catalog() -> HashMap<PdgId, ParticleData> {
             pdg_id: PdgId::MUON,
             name: "mu-",
             anti_name: Some("mu+"),
-            mass: 0.10566,
+            mass: M_MUON,
             width: None,
             charge: -1.0,
             spin: Spin::Half,
@@ -135,7 +137,7 @@ fn build_catalog() -> HashMap<PdgId, ParticleData> {
             pdg_id: PdgId::TAU,
             name: "tau-",
             anti_name: Some("tau+"),
-            mass: 1.777,
+            mass: M_TAU,
             width: None,
             charge: -1.0,
             spin: Spin::Half,
@@ -184,8 +186,8 @@ fn build_catalog() -> HashMap<PdgId, ParticleData> {
             pdg_id: PdgId::Z_BOSON,
             name: "Z",
             anti_name: None,
-            mass: 91.1876,
-            width: Some(2.4955),
+            mass: M_Z,
+            width: Some(GAMMA_Z),
             charge: 0.0,
             spin: Spin::One,
             color: ColorRep::Singlet,
@@ -196,8 +198,8 @@ fn build_catalog() -> HashMap<PdgId, ParticleData> {
             pdg_id: PdgId::W_BOSON,
             name: "W+",
             anti_name: Some("W-"),
-            mass: 80.377,
-            width: Some(2.085),
+            mass: M_W,
+            width: Some(GAMMA_W),
             charge: 1.0,
             spin: Spin::One,
             color: ColorRep::Singlet,
@@ -209,8 +211,8 @@ fn build_catalog() -> HashMap<PdgId, ParticleData> {
             pdg_id: PdgId::HIGGS,
             name: "H",
             anti_name: None,
-            mass: 125.20,
-            width: Some(0.00407),
+            mass: M_H,
+            width: Some(GAMMA_H),
             charge: 0.0,
             spin: Spin::Zero,
             color: ColorRep::Singlet,
@@ -286,7 +288,7 @@ mod tests {
     fn test_lookup_electron() {
         let e = get_particle(PdgId::ELECTRON).unwrap();
         assert_eq!(e.name, "e-");
-        assert!((e.mass - 0.000511).abs() < 1e-6);
+        assert!((e.mass - M_ELECTRON).abs() < 1e-6);
         assert!((e.charge - (-1.0)).abs() < 1e-10);
     }
 
@@ -307,13 +309,13 @@ mod tests {
     #[test]
     fn test_higgs_mass() {
         let h = get_particle(PdgId::HIGGS).unwrap();
-        assert!((h.mass - 125.20).abs() < 0.01);
+        assert!((h.mass - M_H).abs() < 0.01);
     }
 
     #[test]
     fn test_top_quark() {
         let t = get_particle(PdgId::TOP).unwrap();
-        assert!((t.mass - 172.57).abs() < 0.01);
+        assert!((t.mass - M_TOP).abs() < 0.01);
         assert!(t.width.is_some());
     }
 }
