@@ -1,100 +1,174 @@
 use std::f64::consts::PI;
 
+use num_complex::Complex64;
+
 use crate::couplings::constants::*;
+use crate::dirac::gamma::DiracMatrix;
+use crate::dirac::spinor::{DiracSpinor, SpinState};
+use crate::kinematics::polarization::{conjugate, dot_cc, dot_rc, polarization_vectors};
+use crate::kinematics::FourMomentum;
 use crate::particles::PdgId;
 
 use super::amplitude::MatrixElement;
 
 /// e+e- -> W+W- via s-channel photon, s-channel Z, and t-channel neutrino exchange.
 ///
-/// This is the most complex tree-level process. The three diagrams must be
-/// summed coherently at the amplitude level.
-///
-/// Uses the high-energy approximation for the squared amplitude.
+/// Uses exact numerical helicity amplitude evaluation with the full Dirac
+/// spinor and polarization vector infrastructure. All three diagrams are
+/// summed coherently at the amplitude level for each spin/polarization
+/// configuration.
 pub struct EpEmToWpWm;
 
 impl MatrixElement for EpEmToWpWm {
     fn amplitude_squared(&self, s: f64, t: f64) -> f64 {
-        let sqrt_s = s.sqrt();
         let mw = M_W;
         let mw2 = mw * mw;
+        let sqrt_s = s.sqrt();
 
         // Check threshold
         if sqrt_s < 2.0 * mw {
             return 0.0;
         }
 
-        let u = 2.0 * mw2 - s - t;
+        let e_beam = sqrt_s / 2.0;
+        let beta = (1.0 - 4.0 * mw2 / s).sqrt();
 
-        let e2 = 4.0 * PI * ALPHA_EM;
+        if beta < 1e-12 {
+            return 0.0;
+        }
+
+        let p_w = e_beam * beta;
+
+        // Reconstruct cos_theta from s and t
+        // t = mw² - s/2 + (s·β/2)·cosθ  →  cosθ = (2t + s - 2mw²) / (s·β)
+        let cos_theta = ((2.0 * t + s - 2.0 * mw2) / (s * beta)).clamp(-1.0, 1.0);
+        let sin_theta = (1.0 - cos_theta * cos_theta).max(0.0).sqrt();
+
+        // CM frame 4-momenta (massless electrons)
+        let p1 = FourMomentum::new(e_beam, 0.0, 0.0, e_beam); // e⁻
+        let p2 = FourMomentum::new(e_beam, 0.0, 0.0, -e_beam); // e⁺
+        let k1 = FourMomentum::new(e_beam, p_w * sin_theta, 0.0, p_w * cos_theta); // W⁻
+        let k2 = FourMomentum::new(e_beam, -p_w * sin_theta, 0.0, -p_w * cos_theta); // W⁺
+
+        // Neutrino propagator momentum
+        let p_nu = p1 - k1;
+        let t_val = p_nu.invariant_mass_sq(); // = (p₁ - k₁)² < 0
+
+        // Coupling constants using α(M_Z)
+        let e2 = 4.0 * PI * ALPHA_EM_MZ;
         let sw2 = SIN2_THETA_W;
-        let _cw2 = COS2_THETA_W;
 
-        // Propagators
-        let prop_gamma = 1.0 / s; // photon s-channel
+        // Z propagator: 1/(s - M_Z² + i M_Z Γ_Z)
         let mz2 = M_Z * M_Z;
-        let gamma_z = GAMMA_Z;
-        let denom_z = (s - mz2) * (s - mz2) + (M_Z * gamma_z) * (M_Z * gamma_z);
-        let prop_z_re = (s - mz2) / denom_z;
-        let prop_z_im = -M_Z * gamma_z / denom_z;
+        let d_z = Complex64::new(1.0, 0.0) / Complex64::new(s - mz2, M_Z * GAMMA_Z);
 
-        // t-channel neutrino propagator: 1/t (massless neutrino)
-        let prop_nu = if t.abs() > 1e-30 { 1.0 / t } else { 0.0 };
+        // Electron neutral current couplings for Z
+        let gv_e = nc_vector_coupling(-0.5, -1.0);
+        let ga_e = nc_axial_coupling(-0.5);
 
-        // CM momentum of W
-        let beta_w = (1.0 - 4.0 * mw2 / s).max(0.0).sqrt();
-        let _p_w = sqrt_s / 2.0 * beta_w;
+        // Precompute Z coupling matrix: (g_V·I - g_A·γ⁵)
+        let z_coupling_base =
+            DiracMatrix::IDENTITY.scale_real(gv_e) - DiracMatrix::gamma5().scale_real(ga_e);
 
-        // Use the standard result for unpolarized cross section:
-        // dsigma/dOmega = alpha^2 / (4s) * beta_w * F(s, cos_theta)
-        //
-        // The full expression involves a lengthy combination of diagrams.
-        // Here we use the compact analytic form.
-        //
-        // F(s,t) from the three-diagram interference:
+        // Polarization vectors for W⁻ and W⁺
+        let eps1_all = polarization_vectors(&k1, mw);
+        let eps2_all = polarization_vectors(&k2, mw);
 
-        // Diagram amplitudes (squared and interference):
-        // A_gamma: s-channel photon
-        // A_Z: s-channel Z
-        // A_nu: t-channel neutrino
+        // Precompute momentum combinations for the triple gauge vertex
+        // Using all-incoming convention: W⁻(-k₁), W⁺(-k₂), V(q=k₁+k₂)
+        // Vertex momenta: (k₂-k₁), (-k₁-2k₂), (2k₁+k₂)
+        let k2_minus_k1 = k2 - k1;
+        let neg_k1_minus_2k2 = FourMomentum::new(
+            -k1.e - 2.0 * k2.e,
+            -k1.px - 2.0 * k2.px,
+            -k1.py - 2.0 * k2.py,
+            -k1.pz - 2.0 * k2.pz,
+        );
+        let two_k1_plus_k2 = FourMomentum::new(
+            2.0 * k1.e + k2.e,
+            2.0 * k1.px + k2.px,
+            2.0 * k1.py + k2.py,
+            2.0 * k1.pz + k2.pz,
+        );
 
-        // For the gamma-gamma term:
-        let gg = e2 * e2 * prop_gamma * prop_gamma;
-        // For the Z-Z term:
-        let zz = e2 * e2 / (sw2 * sw2) * (prop_z_re * prop_z_re + prop_z_im * prop_z_im);
-        // For the nu-nu term:
-        let nn = e2 * e2 / (4.0 * sw2 * sw2) * prop_nu * prop_nu;
-        // For gamma-Z interference (real part):
-        let gz = e2 * e2 / sw2 * prop_gamma * prop_z_re;
-        // For gamma-nu interference:
-        let gn = e2 * e2 / (2.0 * sw2) * prop_gamma * prop_nu;
-        // For Z-nu interference:
-        let zn = e2 * e2 / (2.0 * sw2 * sw2) * prop_nu * prop_z_re;
+        let metric: [f64; 4] = [1.0, -1.0, -1.0, -1.0];
+        let spins = [SpinState::Up, SpinState::Down];
 
-        // Kinematic factors for each term
-        // These come from contracting the polarization tensors and fermion traces
-        // Using t_hat = t - mw2, u_hat = u - mw2
-        let _t_hat = t - mw2;
-        let _u_hat = u - mw2;
+        let mut sum_m2 = 0.0;
 
-        // Simplified form using Mandelstam variables:
-        // The full result for the spin-averaged amplitude squared:
-        // See e.g. Peskin & Schroeder Problem 15.5, or
-        // M. Bohm, A. Denner, H. Joos "Gauge Theories" eq. (8.3.40)
+        for &s1 in &spins {
+            for &s2 in &spins {
+                // Dirac spinors for massless electrons
+                let u = DiracSpinor::u(&p1, 0.0, s1);
+                let v = DiracSpinor::v(&p2, 0.0, s2);
+                let vbar = v.bar();
 
-        // s-channel (gamma + Z combined) contribution:
-        let f_s = gg * self.s_channel_factor(s, t, mw2)
-            + zz * self.s_channel_z_factor(s, t, mw2, sw2)
-            + gz * 2.0 * self.s_channel_gz_factor(s, t, mw2, sw2);
+                // Compute lepton currents J^μ for photon and Z
+                let mut j_gamma = [Complex64::new(0.0, 0.0); 4];
+                let mut j_z = [Complex64::new(0.0, 0.0); 4];
 
-        // t-channel neutrino contribution:
-        let f_t = nn * self.t_channel_factor(s, t, mw2);
+                for mu in 0..4 {
+                    let gamma_mu = DiracMatrix::gamma(mu);
+                    j_gamma[mu] = vbar.sandwich(&gamma_mu, &u);
 
-        // s-t interference:
-        let f_st = gn * self.st_gamma_nu_factor(s, t, mw2)
-            + zn * self.st_z_nu_factor(s, t, mw2, sw2);
+                    let z_vertex = gamma_mu.multiply(&z_coupling_base);
+                    j_z[mu] = vbar.sandwich(&z_vertex, &u);
+                }
 
-        f_s + f_t + 2.0 * f_st
+                for lam1 in 0..3 {
+                    for lam2 in 0..3 {
+                        // Complex conjugate polarization vectors (outgoing particles)
+                        let eps1c = conjugate(&eps1_all[lam1]);
+                        let eps2c = conjugate(&eps2_all[lam2]);
+
+                        // Triple gauge vertex contraction T^μ (same structure for γ and Z):
+                        // Using all-incoming convention:
+                        // T^μ = (ε₁*·ε₂*)(k₂-k₁)^μ + [(-k₁-2k₂)·ε₁*]ε₂*^μ
+                        //        + [(2k₁+k₂)·ε₂*]ε₁*^μ
+                        let eps12_dot = dot_cc(&eps1c, &eps2c);
+                        let coeff_eps2 = dot_rc(&neg_k1_minus_2k2, &eps1c);
+                        let coeff_eps1 = dot_rc(&two_k1_plus_k2, &eps2c);
+
+                        let k12_arr = k2_minus_k1.as_array();
+
+                        let mut jt_gamma = Complex64::new(0.0, 0.0);
+                        let mut jt_z = Complex64::new(0.0, 0.0);
+
+                        for mu in 0..4 {
+                            let t_mu = eps12_dot * Complex64::new(k12_arr[mu], 0.0)
+                                + coeff_eps2 * eps2c[mu]
+                                + coeff_eps1 * eps1c[mu];
+
+                            let m = metric[mu];
+                            jt_gamma += j_gamma[mu] * t_mu * m;
+                            jt_z += j_z[mu] * t_mu * m;
+                        }
+
+                        // s-channel photon: M_γ = (e²/s) × J_γ · T
+                        let m_gamma = Complex64::new(e2 / s, 0.0) * jt_gamma;
+
+                        // s-channel Z: M_Z = [e²/(2sin²θ_W)] × D_Z × J_Z · T
+                        let m_z = Complex64::new(e2 / (2.0 * sw2), 0.0) * d_z * jt_z;
+
+                        // t-channel neutrino: M_ν = [e²/(2sin²θ_W·t)] × v̄ ε̸₂* P_L p̸_ν ε̸₁* P_L u
+                        let chain = DiracMatrix::slash_complex(&eps2c)
+                            .multiply(&DiracMatrix::proj_left())
+                            .multiply(&DiracMatrix::slash(&p_nu))
+                            .multiply(&DiracMatrix::slash_complex(&eps1c))
+                            .multiply(&DiracMatrix::proj_left());
+                        let nu_spinor = vbar.sandwich(&chain, &u);
+                        let m_nu =
+                            Complex64::new(e2 / (2.0 * sw2 * t_val), 0.0) * nu_spinor;
+
+                        let m_total = m_gamma + m_z + m_nu;
+                        sum_m2 += m_total.norm_sqr();
+                    }
+                }
+            }
+        }
+
+        // Spin average: divide by 4 (2 electron spins × 2 positron spins)
+        sum_m2 / 4.0
     }
 
     fn initial_state(&self) -> Vec<PdgId> {
@@ -118,68 +192,11 @@ impl MatrixElement for EpEmToWpWm {
     }
 }
 
-impl EpEmToWpWm {
-    // s-channel photon tensor contraction
-    fn s_channel_factor(&self, s: f64, t: f64, mw2: f64) -> f64 {
-        let u = 2.0 * mw2 - s - t;
-        // Photon couples to W charge. The result from contracting
-        // the triple gauge vertex with fermion current:
-        // ~ (t*u - mw^4) * (2 + (s - 2mw2)^2 / (4 mw^4)) + correction terms
-        //
-        // Use the standard Denner et al. result:
-        // For unpolarized photon exchange:
-        let tu = t * u;
-        let s2 = s * s;
-
-        // Transverse part
-        let term1 = tu / mw2 - s2;
-        // Longitudinal corrections
-        let term2 = s2 + 8.0 * mw2 * s - 8.0 * mw2 * mw2;
-
-        -(term1 + term2 / 4.0 - s * s / (4.0 * mw2))
-    }
-
-    fn s_channel_z_factor(&self, s: f64, t: f64, mw2: f64, _sw2: f64) -> f64 {
-        // Z boson has additional (gV_e, gA_e) couplings and modified WWZ vertex
-        let gv_e = nc_vector_coupling(-0.5, -1.0);
-        let ga_e = nc_axial_coupling(-0.5);
-        let v2_plus_a2 = gv_e * gv_e + ga_e * ga_e;
-
-        v2_plus_a2 * self.s_channel_factor(s, t, mw2)
-    }
-
-    fn s_channel_gz_factor(&self, s: f64, t: f64, mw2: f64, _sw2: f64) -> f64 {
-        let gv_e = nc_vector_coupling(-0.5, -1.0);
-        gv_e * self.s_channel_factor(s, t, mw2)
-    }
-
-    fn t_channel_factor(&self, s: f64, t: f64, mw2: f64) -> f64 {
-        let _u = 2.0 * mw2 - s - t;
-        // t-channel neutrino exchange gives a left-handed structure
-        // |M_nu|^2 ~ (t - mw2)^2 * (s/mw2 + ...) terms
-        let t_hat = t - mw2;
-
-        // Simplified expression for the t-channel squared amplitude
-        4.0 * t_hat * t_hat / mw2 + 4.0 * t_hat + s
-    }
-
-    fn st_gamma_nu_factor(&self, s: f64, t: f64, mw2: f64) -> f64 {
-        let t_hat = t - mw2;
-        // gamma-nu interference
-        -(2.0 * t_hat + s) * (1.0 + t_hat / mw2)
-    }
-
-    fn st_z_nu_factor(&self, s: f64, t: f64, mw2: f64, _sw2: f64) -> f64 {
-        let gv_e = nc_vector_coupling(-0.5, -1.0);
-        let ga_e = nc_axial_coupling(-0.5);
-        // Z-nu interference involves both gV and gA
-        (gv_e + ga_e) * self.st_gamma_nu_factor(s, t, mw2)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cross_section::differential::dsigma_dcostheta;
+    use crate::cross_section::total::total_cross_section_2to2;
 
     #[test]
     fn test_below_threshold() {
@@ -194,16 +211,204 @@ mod tests {
         let me = EpEmToWpWm;
         let sqrt_s = 200.0;
         let s = sqrt_s * sqrt_s;
-        // cos_theta = 0
         let mw2 = M_W * M_W;
-        let p_w = (s / 4.0 - mw2).max(0.0).sqrt();
-        let e_w = sqrt_s / 2.0;
-        let t = mw2 - sqrt_s / 2.0 * (e_w - 0.0); // cos_theta=0, need proper formula
-        // t = mw^2 - s/2 + sqrt(s) * p_w * cos_theta
-        // For cos_theta = 0: t = mw^2 - s/2
-        let t = mw2 - s / 2.0;
-
+        let t = mw2 - s / 2.0; // cos_theta = 0
         let m2 = me.amplitude_squared(s, t);
         assert!(m2 > 0.0, "|M|^2 should be positive, got {}", m2);
+    }
+
+    #[test]
+    fn test_total_cross_section_200gev() {
+        // Tree-level SM prediction at √s = 200 GeV is approximately 17 pb
+        let me = EpEmToWpWm;
+        let sigma_nb = total_cross_section_2to2(&me, 200.0);
+        let sigma_pb = sigma_nb * 1000.0;
+
+        assert!(
+            sigma_pb > 14.0 && sigma_pb < 20.0,
+            "σ(200 GeV) = {:.2} pb, expected ~17 pb",
+            sigma_pb
+        );
+    }
+
+    #[test]
+    fn test_gauge_cancellation_high_energy() {
+        // Without gauge cancellation, σ would grow with s for longitudinal W's.
+        // The SM prediction should decrease roughly as 1/s at high energy.
+        let me = EpEmToWpWm;
+
+        let sigma_200 = total_cross_section_2to2(&me, 200.0);
+        let sigma_500 = total_cross_section_2to2(&me, 500.0);
+        let sigma_1000 = total_cross_section_2to2(&me, 1000.0);
+
+        assert!(
+            sigma_500 > 0.0,
+            "σ(500 GeV) should be positive: {}",
+            sigma_500
+        );
+        assert!(
+            sigma_1000 > 0.0,
+            "σ(1000 GeV) should be positive: {}",
+            sigma_1000
+        );
+        assert!(
+            sigma_500 < sigma_200,
+            "σ should decrease with energy: σ(500)={} > σ(200)={}",
+            sigma_500,
+            sigma_200
+        );
+        assert!(
+            sigma_1000 < sigma_500,
+            "σ should decrease with energy: σ(1000)={} > σ(500)={}",
+            sigma_1000,
+            sigma_500
+        );
+    }
+
+    #[test]
+    fn test_threshold_behavior() {
+        // Near threshold, σ → 0 as √s → 2M_W
+        let me = EpEmToWpWm;
+        let sigma_threshold = total_cross_section_2to2(&me, 2.0 * M_W + 0.5);
+        let sigma_200 = total_cross_section_2to2(&me, 200.0);
+
+        assert!(
+            sigma_threshold < sigma_200 * 0.01,
+            "σ near threshold = {} nb should be much smaller than σ(200) = {} nb",
+            sigma_threshold,
+            sigma_200
+        );
+    }
+
+    #[test]
+    fn debug_diagram_contributions() {
+        let sqrt_s = 500.0_f64;
+        let s = sqrt_s * sqrt_s;
+        let mw = M_W;
+        let mw2 = mw * mw;
+        let e_beam = sqrt_s / 2.0;
+        let beta = (1.0 - 4.0 * mw2 / s).sqrt();
+        let p_w = e_beam * beta;
+        let cos_theta = 0.0_f64;
+        let sin_theta = 1.0_f64;
+        let e2 = 4.0 * PI * ALPHA_EM_MZ;
+        let sw2 = SIN2_THETA_W;
+        let mz2 = M_Z * M_Z;
+        let d_z = Complex64::new(1.0, 0.0) / Complex64::new(s - mz2, M_Z * GAMMA_Z);
+        let gv_e = nc_vector_coupling(-0.5, -1.0);
+        let ga_e = nc_axial_coupling(-0.5);
+
+        let p1 = FourMomentum::new(e_beam, 0.0, 0.0, e_beam);
+        let p2 = FourMomentum::new(e_beam, 0.0, 0.0, -e_beam);
+        let k1 = FourMomentum::new(e_beam, p_w * sin_theta, 0.0, p_w * cos_theta);
+        let k2 = FourMomentum::new(e_beam, -p_w * sin_theta, 0.0, -p_w * cos_theta);
+        let p_nu = p1 - k1;
+        let t_val = p_nu.invariant_mass_sq();
+
+        eprintln!("sqrt_s={}, beta={:.4}, p_w={:.2}, t={:.2}", sqrt_s, beta, p_w, t_val);
+        eprintln!("e2={:.6}, e2/(2sw2)={:.6}, 1/s={:.2e}, d_z={:?}", e2, e2/(2.0*sw2), 1.0/s, d_z);
+
+        let eps1_all = polarization_vectors(&k1, mw);
+        let eps2_all = polarization_vectors(&k2, mw);
+        let z_coupling_base = DiracMatrix::IDENTITY.scale_real(gv_e) - DiracMatrix::gamma5().scale_real(ga_e);
+
+        let k2_minus_k1 = k2 - k1;
+        let neg_k1_minus_2k2 = FourMomentum::new(-k1.e-2.0*k2.e, -k1.px-2.0*k2.px, -k1.py-2.0*k2.py, -k1.pz-2.0*k2.pz);
+        let two_k1_plus_k2 = FourMomentum::new(2.0*k1.e+k2.e, 2.0*k1.px+k2.px, 2.0*k1.py+k2.py, 2.0*k1.pz+k2.pz);
+        let metric_diag: [f64; 4] = [1.0, -1.0, -1.0, -1.0];
+
+        let mut sum_gamma2 = 0.0_f64;
+        let mut sum_z2 = 0.0_f64;
+        let mut sum_nu2 = 0.0_f64;
+        let mut sum_total2 = 0.0_f64;
+
+        for &s1 in &[SpinState::Up, SpinState::Down] {
+            for &s2 in &[SpinState::Up, SpinState::Down] {
+                let u = DiracSpinor::u(&p1, 0.0, s1);
+                let v = DiracSpinor::v(&p2, 0.0, s2);
+                let vbar = v.bar();
+
+                let mut j_gamma = [Complex64::new(0.0,0.0); 4];
+                let mut j_z = [Complex64::new(0.0,0.0); 4];
+                for mu in 0..4 {
+                    let gmu = DiracMatrix::gamma(mu);
+                    j_gamma[mu] = vbar.sandwich(&gmu, &u);
+                    j_z[mu] = vbar.sandwich(&gmu.multiply(&z_coupling_base), &u);
+                }
+
+                for lam1 in 0..3 {
+                    for lam2 in 0..3 {
+                        let eps1c = conjugate(&eps1_all[lam1]);
+                        let eps2c = conjugate(&eps2_all[lam2]);
+
+                        let eps12_dot = dot_cc(&eps1c, &eps2c);
+                        let coeff_eps2 = dot_rc(&neg_k1_minus_2k2, &eps1c);
+                        let coeff_eps1 = dot_rc(&two_k1_plus_k2, &eps2c);
+                        let k12_arr = k2_minus_k1.as_array();
+
+                        let mut jt_gamma = Complex64::new(0.0, 0.0);
+                        let mut jt_z = Complex64::new(0.0, 0.0);
+                        for mu in 0..4 {
+                            let t_mu = eps12_dot * Complex64::new(k12_arr[mu], 0.0) + coeff_eps2 * eps2c[mu] + coeff_eps1 * eps1c[mu];
+                            jt_gamma += j_gamma[mu] * t_mu * metric_diag[mu];
+                            jt_z += j_z[mu] * t_mu * metric_diag[mu];
+                        }
+
+                        let m_gamma = Complex64::new(e2 / s, 0.0) * jt_gamma;
+                        let m_z = Complex64::new(e2 / (2.0 * sw2), 0.0) * d_z * jt_z;
+
+                        let chain = DiracMatrix::slash_complex(&eps2c)
+                            .multiply(&DiracMatrix::proj_left())
+                            .multiply(&DiracMatrix::slash(&p_nu))
+                            .multiply(&DiracMatrix::slash_complex(&eps1c))
+                            .multiply(&DiracMatrix::proj_left());
+                        let nu_spinor = vbar.sandwich(&chain, &u);
+                        let m_nu = Complex64::new(e2 / (2.0 * sw2 * t_val), 0.0) * nu_spinor;
+
+                        let m_total = m_gamma + m_z + m_nu;
+
+                        sum_gamma2 += m_gamma.norm_sqr();
+                        sum_z2 += m_z.norm_sqr();
+                        sum_nu2 += m_nu.norm_sqr();
+                        sum_total2 += m_total.norm_sqr();
+
+                        // Print longitudinal-longitudinal (lam=1 is ε(0))
+                        if lam1 == 1 && lam2 == 1 {
+                            eprintln!("spin=({:?},{:?}) LL: γ={:.4e} Z={:.4e} ν={:.4e} tot={:.4e}",
+                                s1, s2, m_gamma, m_z, m_nu, m_total);
+                        }
+                    }
+                }
+            }
+        }
+
+        eprintln!("\nΣ|M|²/4: γ={:.6e}, Z={:.6e}, ν={:.6e}, total={:.6e}",
+            sum_gamma2/4.0, sum_z2/4.0, sum_nu2/4.0, sum_total2/4.0);
+
+        // Convert to cross section
+        let p_i = e_beam;
+        let p_f = p_w;
+        let avg_m2 = sum_total2 / 4.0;
+        let sigma_gev2 = 1.0/(32.0 * PI * s) * (p_f/p_i) * avg_m2 * 2.0; // approx integral over cosθ
+        let sigma_pb = sigma_gev2 * GEV2_TO_NB * 1000.0;
+        eprintln!("Approx σ ~ {:.2} pb (very rough)", sigma_pb);
+    }
+
+    #[test]
+    fn test_angular_distribution_forward_backward() {
+        // t-channel neutrino exchange enhances forward scattering
+        // (W⁻ goes in the e⁻ direction)
+        let me = EpEmToWpWm;
+        let sqrt_s = 200.0;
+
+        let forward = dsigma_dcostheta(&me, sqrt_s, 0.5);
+        let backward = dsigma_dcostheta(&me, sqrt_s, -0.5);
+
+        assert!(
+            forward > backward,
+            "Forward ({}) should exceed backward ({}) at 200 GeV",
+            forward,
+            backward
+        );
     }
 }

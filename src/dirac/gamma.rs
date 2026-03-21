@@ -143,6 +143,24 @@ impl DiracMatrix {
         result
     }
 
+    /// Feynman slash for a complex 4-vector: ε̸ = ε_μ γ^μ = ε^0 γ^0 - ε^1 γ^1 - ε^2 γ^2 - ε^3 γ^3
+    /// Input components are contravariant; the metric is applied internally.
+    pub fn slash_complex(eps: &[Complex64; 4]) -> Self {
+        let mut result = Self::ZERO;
+        let g = [Self::gamma0(), Self::gamma1(), Self::gamma2(), Self::gamma3()];
+        let metric = [1.0, -1.0, -1.0, -1.0];
+
+        for mu in 0..4 {
+            let coeff = Complex64::new(metric[mu], 0.0) * eps[mu];
+            for i in 0..4 {
+                for j in 0..4 {
+                    result.data[i][j] += coeff * g[mu].data[i][j];
+                }
+            }
+        }
+        result
+    }
+
     /// Trace of this matrix: Tr[M] = sum_i M[i][i]
     pub fn trace(&self) -> Complex64 {
         self.data[0][0] + self.data[1][1] + self.data[2][2] + self.data[3][3]
