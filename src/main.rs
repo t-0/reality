@@ -34,8 +34,8 @@ fn main() {
         Commands::Unification { susy_scale } => {
             display::print_unification(susy_scale);
         }
-        Commands::Amend { file } => {
-            display::print_amendment(&file);
+        Commands::Amend { file, loops } => {
+            display::print_amendment(&file, loops);
         }
     }
 }

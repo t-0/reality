@@ -19,6 +19,17 @@ pub enum Base {
     None,
 }
 
+/// Which top Yukawa running to include at two loops.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TopYukawa {
+    /// MSSM coefficients in supersymmetric energy ranges, SM coefficients elsewhere.
+    #[default]
+    Auto,
+    /// Leave the Yukawa contribution out.
+    None,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum Number {
@@ -73,6 +84,8 @@ struct SpecFile {
     #[serde(default = "default_inputs")]
     inputs: Vec<String>,
     #[serde(default)]
+    top_yukawa: TopYukawa,
+    #[serde(default)]
     field: Vec<FieldSpec>,
 }
 
@@ -87,6 +100,8 @@ pub struct Amendment {
     pub inputs: (usize, usize),
     /// Index of the held-out coupling.
     pub predicted: usize,
+    /// Top Yukawa scheme for two-loop running.
+    pub top_yukawa: TopYukawa,
     /// Fields added on top of the base.
     pub added: Vec<Field>,
 }
@@ -159,6 +174,7 @@ impl Amendment {
             base: spec.base,
             inputs: (i.min(j), i.max(j)),
             predicted,
+            top_yukawa: spec.top_yukawa,
             added,
         })
     }

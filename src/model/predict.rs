@@ -1,7 +1,9 @@
 use super::gates::{self, Gate, Verdict};
 use super::proton::ProtonDecay;
 use super::running::{Running, Segment};
+use super::field::Field;
 use super::spec::Amendment;
+use super::two_loop::TwoLoop;
 use crate::couplings::unification::inverse_couplings_mz;
 
 /// Experimental 1-sigma uncertainties on 1/alpha_i(M_Z).
@@ -14,9 +16,17 @@ pub const SIGMA_INV_MZ: [f64; 3] = [0.0052, 0.0055, 0.0646];
 /// alpha_s by 3-8%; 5% is used as a 1-sigma estimate.
 pub const ONE_LOOP_THEORY_REL: f64 = 0.05;
 
+/// Relative theory uncertainty at two loops. What remains is mostly unknown
+/// threshold corrections at the superpartner and GUT scales, plus three-loop terms.
+pub const TWO_LOOP_THEORY_REL: f64 = 0.02;
+
 /// Result of predicting the held-out coupling from the two inputs plus unification.
 #[derive(Debug, Clone)]
 pub struct Prediction {
+    /// Loop order of the running (1 or 2).
+    pub loops: u8,
+    /// Relative theory uncertainty used in `pull`.
+    pub theory_rel: f64,
     pub inputs: (usize, usize),
     pub predicted: usize,
     /// Scale where the two input couplings meet (GeV).
@@ -32,6 +42,33 @@ pub struct Prediction {
 }
 
 impl Prediction {
+    fn new(
+        loops: u8,
+        inputs: (usize, usize),
+        predicted: usize,
+        m_gut: f64,
+        inverse_alpha_gut: f64,
+        inverse_predicted: f64,
+    ) -> Self {
+        let theory_rel = if loops >= 2 { TWO_LOOP_THEORY_REL } else { ONE_LOOP_THEORY_REL };
+        let inverse_measured = inverse_couplings_mz()[predicted];
+        let sigma_exp = SIGMA_INV_MZ[predicted];
+        let sigma_th = theory_rel * inverse_predicted;
+        let diff = inverse_predicted - inverse_measured;
+        Self {
+            loops,
+            theory_rel,
+            inputs,
+            predicted,
+            m_gut,
+            inverse_alpha_gut,
+            inverse_predicted,
+            inverse_measured,
+            pull_experimental: diff / sigma_exp,
+            pull: diff / (sigma_exp * sigma_exp + sigma_th * sigma_th).sqrt(),
+        }
+    }
+
     pub fn alpha_predicted(&self) -> f64 {
         1.0 / self.inverse_predicted
     }
@@ -69,28 +106,29 @@ pub fn predict(running: &Running, inputs: (usize, usize), predicted: usize) -> O
     let m_gut = running.crossing(inv_mz, i, j)?;
     let inverse_alpha_gut = running.inverse_at(inv_mz, m_gut)[i];
     let inverse_predicted = inverse_alpha_gut + running.delta(m_gut)[predicted];
-    let inverse_measured = inv_mz[predicted];
-    let sigma_exp = SIGMA_INV_MZ[predicted];
-    let sigma_th = ONE_LOOP_THEORY_REL * inverse_predicted;
-    let diff = inverse_predicted - inverse_measured;
-    Some(Prediction {
-        inputs,
-        predicted,
-        m_gut,
-        inverse_alpha_gut,
-        inverse_predicted,
-        inverse_measured,
-        pull_experimental: diff / sigma_exp,
-        pull: diff / (sigma_exp * sigma_exp + sigma_th * sigma_th).sqrt(),
-    })
+    Some(Prediction::new(1, inputs, predicted, m_gut, inverse_alpha_gut, inverse_predicted))
 }
 
-pub fn evaluate(amendment: &Amendment) -> Report {
+/// Two-loop version: the held-out coupling feeds back into the running of the
+/// inputs, so it is found by shooting, seeded with the one-loop answer.
+fn predict_two_loop(amendment: &Amendment, fields: &[Field], one_loop: &Prediction) -> Option<Prediction> {
+    let two = TwoLoop::new(fields, amendment.top_yukawa);
+    let (i, j) = amendment.inputs;
+    let k = amendment.predicted;
+    let (x, p) = two.solve(inverse_couplings_mz(), (i, j), k, one_loop.inverse_predicted)?;
+    Some(Prediction::new(2, (i, j), k, p.ln_q.exp(), p.inv[i], x))
+}
+
+/// Evaluate an amendment with one- or two-loop running.
+pub fn evaluate(amendment: &Amendment, loops: u8) -> Report {
     let fields = amendment.all_fields();
     let running = Running::new(&fields);
     let landau_pole = running.landau_pole(inverse_couplings_mz());
-    let prediction = predict(&running, amendment.inputs, amendment.predicted)
-        .filter(|p| landau_pole.map_or(true, |pole| p.m_gut < pole));
+    let mut prediction = predict(&running, amendment.inputs, amendment.predicted);
+    if loops >= 2 {
+        prediction = prediction.and_then(|p| predict_two_loop(amendment, &fields, &p));
+    }
+    let prediction = prediction.filter(|p| landau_pole.map_or(true, |pole| p.m_gut < pole));
     let proton = prediction
         .as_ref()
         .map(|p| ProtonDecay::estimate(p.m_gut, p.inverse_alpha_gut));
@@ -109,7 +147,7 @@ mod tests {
     use super::*;
 
     fn eval(toml: &str) -> Report {
-        evaluate(&Amendment::from_toml(toml).unwrap())
+        evaluate(&Amendment::from_toml(toml).unwrap(), 1)
     }
 
     #[test]

@@ -84,5 +84,9 @@ pub enum Commands {
     Amend {
         /// Path to a model file, e.g. models/mssm.toml
         file: std::path::PathBuf,
+
+        /// Loop order of the running: 1 or 2
+        #[arg(long, default_value = "2", value_parser = clap::value_parser!(u8).range(1..=2))]
+        loops: u8,
     },
 }

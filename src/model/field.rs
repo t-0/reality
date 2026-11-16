@@ -27,6 +27,20 @@ impl Kind {
             Kind::RealScalar => 1.0 / 6.0,
         }
     }
+
+    /// Weight in the two-loop coefficient: 1/2 per Weyl fermion, 1 per complex scalar.
+    pub fn two_loop_weight(self) -> f64 {
+        match self {
+            Kind::Weyl => 0.5,
+            Kind::Dirac => 1.0,
+            Kind::ComplexScalar => 1.0,
+            Kind::RealScalar => 0.5,
+        }
+    }
+
+    pub fn is_fermion(self) -> bool {
+        matches!(self, Kind::Weyl | Kind::Dirac)
+    }
 }
 
 /// SU(3) colour representations.
@@ -75,6 +89,16 @@ impl Su3 {
         }
     }
 
+    /// Quadratic Casimir C2(R), with C2(3) = 4/3.
+    pub fn casimir(self) -> f64 {
+        match self {
+            Su3::Singlet => 0.0,
+            Su3::Triplet | Su3::AntiTriplet => 4.0 / 3.0,
+            Su3::Sextet | Su3::AntiSextet => 10.0 / 3.0,
+            Su3::Octet => 3.0,
+        }
+    }
+
     /// Cubic anomaly coefficient A(R), normalized so A(3) = 1.
     pub fn cubic_anomaly(self) -> f64 {
         match self {
@@ -112,6 +136,12 @@ impl Su3 {
 pub fn su2_index(n: u32) -> f64 {
     let n = n as f64;
     (n - 1.0) * n * (n + 1.0) / 12.0
+}
+
+/// Quadratic Casimir j(j+1) of the SU(2) representation of dimension n.
+pub fn su2_casimir(n: u32) -> f64 {
+    let n = n as f64;
+    (n * n - 1.0) / 4.0
 }
 
 /// Parse a hypercharge written as "1/6", "-2/3", "0" or a decimal.
@@ -163,17 +193,29 @@ impl Field {
         self
     }
 
-    /// Contribution (b1, b2, b3) to the one-loop beta coefficients,
-    /// with U(1)_Y in GUT normalization (factor 3/5).
-    pub fn beta_contribution(&self) -> [f64; 3] {
-        let w = self.kind.beta_weight() * self.copies as f64;
+    /// Dynkin index S2 under each gauge group (U(1)_Y, SU(2), SU(3)), including
+    /// the dimension under the other groups and the number of copies.
+    /// U(1)_Y uses GUT normalization (factor 3/5).
+    pub fn dynkin(&self) -> [f64; 3] {
+        let n = self.copies as f64;
         let d3 = self.su3.dim();
         let d2 = self.su2 as f64;
         [
-            w * 0.6 * self.y * self.y * d3 * d2,
-            w * su2_index(self.su2) * d3,
-            w * self.su3.index() * d2,
+            n * 0.6 * self.y * self.y * d3 * d2,
+            n * su2_index(self.su2) * d3,
+            n * self.su3.index() * d2,
         ]
+    }
+
+    /// Quadratic Casimir under each gauge group (U(1)_Y in GUT normalization).
+    pub fn casimirs(&self) -> [f64; 3] {
+        [0.6 * self.y * self.y, su2_casimir(self.su2), self.su3.casimir()]
+    }
+
+    /// Contribution (b1, b2, b3) to the one-loop beta coefficients.
+    pub fn beta_contribution(&self) -> [f64; 3] {
+        let w = self.kind.beta_weight();
+        self.dynkin().map(|s| w * s)
     }
 
     /// The field as a list of left-handed Weyl multiplets, for anomaly counting.

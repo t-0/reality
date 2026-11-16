@@ -318,7 +318,7 @@ fn fmt_b(b: [f64; 3]) -> String {
     format!("({:.3}, {:.3}, {:.3})", b[0], b[1], b[2])
 }
 
-pub fn print_amendment(path: &std::path::Path) {
+pub fn print_amendment(path: &std::path::Path, loops: u8) {
     let amendment = match Amendment::from_file(path) {
         Ok(a) => a,
         Err(e) => {
@@ -326,7 +326,7 @@ pub fn print_amendment(path: &std::path::Path) {
             std::process::exit(1);
         }
     };
-    let report = model::evaluate(&amendment);
+    let report = model::evaluate(&amendment, loops);
     let (i, j) = amendment.inputs;
     let k = amendment.predicted;
 
@@ -356,9 +356,18 @@ pub fn print_amendment(path: &std::path::Path) {
         println!("{table}");
     }
 
-    println!("\nBeta coefficients (b1, b2, b3) by energy range:");
+    println!("\nOne-loop beta coefficients (b1, b2, b3) by energy range:");
+    let fields = amendment.all_fields();
     for s in &report.segments {
-        println!("  {:.2e} - {:.2e} GeV   {}", s.lo, s.hi, fmt_b(s.b));
+        let active: Vec<_> = fields.iter().filter(|f| f.mass <= s.lo * (1.0 + 1e-9)).collect();
+        let susy = model::two_loop::is_supersymmetric(&active);
+        println!(
+            "  {:.2e} - {:.2e} GeV   {}{}",
+            s.lo,
+            s.hi,
+            fmt_b(s.b),
+            if susy { "   supersymmetric" } else { "" }
+        );
     }
 
     println!("\nConsistency gates:");
@@ -378,7 +387,16 @@ pub fn print_amendment(path: &std::path::Path) {
         println!("\nThe model is inconsistent; its predictions are shown for reference only.");
     }
 
-    println!("\nPrediction:");
+    println!(
+        "\nPrediction ({}-loop running{}):",
+        loops,
+        if loops >= 2 {
+            format!(", top Yukawa: {:?}", amendment.top_yukawa).to_lowercase()
+                .replace("auto", "on")
+        } else {
+            String::new()
+        }
+    );
     match &report.prediction {
         Some(p) => {
             println!(
@@ -397,9 +415,9 @@ pub fn print_amendment(path: &std::path::Path) {
                 COUPLING_NAMES[k], p.inverse_predicted, p.inverse_measured
             );
             println!(
-                "  pull = {:+.1} sigma (experiment + {:.0}% one-loop theory), {:+.1} sigma (experiment only)",
+                "  pull = {:+.1} sigma (experiment + {:.0}% theory), {:+.1} sigma (experiment only)",
                 p.pull,
-                100.0 * model::predict::ONE_LOOP_THEORY_REL,
+                100.0 * p.theory_rel,
                 p.pull_experimental
             );
         }
@@ -463,5 +481,9 @@ pub fn print_amendment(path: &std::path::Path) {
         predicted.len(),
         if predicted.is_empty() { String::new() } else { format!(" ({})", predicted.join(", ")) }
     );
-    println!("\nNote: one-loop running. Two-loop and threshold corrections shift alpha_s by a few percent.");
+    if loops >= 2 {
+        println!("\nNote: sharp thresholds; superpartner and GUT-scale threshold corrections are not included.");
+    } else {
+        println!("\nNote: one-loop running. Two-loop and threshold corrections shift alpha_s by a few percent.");
+    }
 }

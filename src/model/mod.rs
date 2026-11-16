@@ -8,6 +8,7 @@ pub mod proton;
 pub mod running;
 pub mod sm;
 pub mod spec;
+pub mod two_loop;
 
 pub use predict::{evaluate, Prediction, Report};
 pub use spec::Amendment;
