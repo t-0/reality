@@ -1,4 +1,5 @@
 use super::gates::{self, Gate, Verdict};
+use super::proton::ProtonDecay;
 use super::running::{Running, Segment};
 use super::spec::Amendment;
 use crate::couplings::unification::inverse_couplings_mz;
@@ -7,6 +8,11 @@ use crate::couplings::unification::inverse_couplings_mz;
 /// From 1/alpha_em(M_Z) = 127.952 +- 0.009, sin^2(theta_W) = 0.23122 +- 0.00004
 /// and alpha_s(M_Z) = 0.1180 +- 0.0009 (PDG), propagated to the GUT-normalized couplings.
 pub const SIGMA_INV_MZ: [f64; 3] = [0.0052, 0.0055, 0.0646];
+
+/// Relative theory uncertainty on a one-loop prediction of 1/alpha at M_Z.
+/// Two-loop running and threshold corrections typically move the predicted
+/// alpha_s by 3-8%; 5% is used as a 1-sigma estimate.
+pub const ONE_LOOP_THEORY_REL: f64 = 0.05;
 
 /// Result of predicting the held-out coupling from the two inputs plus unification.
 #[derive(Debug, Clone)]
@@ -20,6 +26,8 @@ pub struct Prediction {
     pub inverse_predicted: f64,
     pub inverse_measured: f64,
     /// (predicted - measured) / experimental sigma, in 1/alpha.
+    pub pull_experimental: f64,
+    /// (predicted - measured) / (experimental and one-loop theory sigma in quadrature).
     pub pull: f64,
 }
 
@@ -43,6 +51,7 @@ pub struct Report {
     pub segments: Vec<Segment>,
     pub landau_pole: Option<f64>,
     pub prediction: Option<Prediction>,
+    pub proton: Option<ProtonDecay>,
 }
 
 impl Report {
@@ -61,6 +70,9 @@ pub fn predict(running: &Running, inputs: (usize, usize), predicted: usize) -> O
     let inverse_alpha_gut = running.inverse_at(inv_mz, m_gut)[i];
     let inverse_predicted = inverse_alpha_gut + running.delta(m_gut)[predicted];
     let inverse_measured = inv_mz[predicted];
+    let sigma_exp = SIGMA_INV_MZ[predicted];
+    let sigma_th = ONE_LOOP_THEORY_REL * inverse_predicted;
+    let diff = inverse_predicted - inverse_measured;
     Some(Prediction {
         inputs,
         predicted,
@@ -68,7 +80,8 @@ pub fn predict(running: &Running, inputs: (usize, usize), predicted: usize) -> O
         inverse_alpha_gut,
         inverse_predicted,
         inverse_measured,
-        pull: (inverse_predicted - inverse_measured) / SIGMA_INV_MZ[predicted],
+        pull_experimental: diff / sigma_exp,
+        pull: diff / (sigma_exp * sigma_exp + sigma_th * sigma_th).sqrt(),
     })
 }
 
@@ -78,12 +91,16 @@ pub fn evaluate(amendment: &Amendment) -> Report {
     let landau_pole = running.landau_pole(inverse_couplings_mz());
     let prediction = predict(&running, amendment.inputs, amendment.predicted)
         .filter(|p| landau_pole.map_or(true, |pole| p.m_gut < pole));
+    let proton = prediction
+        .as_ref()
+        .map(|p| ProtonDecay::estimate(p.m_gut, p.inverse_alpha_gut));
     Report {
         amendment: amendment.clone(),
         gates: gates::check(&fields),
         segments: running.segments.clone(),
         landau_pole,
         prediction,
+        proton,
     }
 }
 
@@ -99,7 +116,8 @@ mod tests {
     fn test_sm_predicts_alpha_s_badly() {
         let p = eval("name = \"SM\"").prediction.unwrap();
         assert!((p.alpha_predicted() - 0.071).abs() < 0.002, "{}", p.alpha_predicted());
-        assert!(p.pull.abs() > 50.0);
+        assert!(p.pull_experimental.abs() > 50.0);
+        assert!(p.pull.abs() > 5.0, "SM still excluded with theory error: {}", p.pull);
     }
 
     #[test]

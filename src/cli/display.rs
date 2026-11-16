@@ -8,7 +8,7 @@ use crate::decay::tables;
 use crate::matrix_elements::ee_mumu::EpEmToMuPMuM;
 use crate::matrix_elements::ee_qqbar::EpEmToQQbar;
 use crate::matrix_elements::ee_ww::EpEmToWpWm;
-use crate::model::{self, gates::Verdict, spec::COUPLING_NAMES, Amendment};
+use crate::model::{self, gates::Verdict, proton, spec::COUPLING_NAMES, Amendment};
 use crate::monte_carlo::sampler::EventGenerator;
 use crate::particles;
 
@@ -393,14 +393,46 @@ pub fn print_amendment(path: &std::path::Path) {
                 100.0 * p.relative_error()
             );
             println!(
-                "  1/{} predicted = {:.3}   measured = {:.3}   pull = {:+.1} sigma (experimental only)",
-                COUPLING_NAMES[k], p.inverse_predicted, p.inverse_measured, p.pull
+                "  1/{} predicted = {:.3}   measured = {:.3}",
+                COUPLING_NAMES[k], p.inverse_predicted, p.inverse_measured
+            );
+            println!(
+                "  pull = {:+.1} sigma (experiment + {:.0}% one-loop theory), {:+.1} sigma (experiment only)",
+                p.pull,
+                100.0 * model::predict::ONE_LOOP_THEORY_REL,
+                p.pull_experimental
             );
         }
         None => println!(
             "  {} and {} never meet below 1e19 GeV (or only beyond a Landau pole): no prediction.",
             COUPLING_NAMES[i], COUPLING_NAMES[j]
         ),
+    }
+
+    if let Some(pd) = &report.proton {
+        let (lo, hi) = pd.range_years();
+        println!("\nProton decay (p -> e+ pi0 via X/Y gauge bosons at M_GUT):");
+        println!(
+            "  tau = {:.1e} years (range {:.0e} - {:.0e})",
+            pd.lifetime_years, lo, hi
+        );
+        println!(
+            "  Super-K limit: > {:.1e} years    Hyper-K reach: ~{:.0e} years",
+            proton::SUPER_K_LIMIT_YEARS,
+            proton::HYPER_K_REACH_YEARS
+        );
+        let verdict = match pd.status {
+            proton::Status::Excluded => "EXCLUDED: protons would already have been seen decaying.".to_string(),
+            proton::Status::Borderline => "BORDERLINE: the estimate straddles the Super-K limit.".to_string(),
+            proton::Status::TestableAtHyperK => format!(
+                "TESTABLE. Kill condition: Hyper-K sees no p -> e+ pi0 down to ~{:.0e} years.",
+                proton::HYPER_K_REACH_YEARS
+            ),
+            proton::Status::OutOfReach => {
+                "ALLOWED, beyond Hyper-K's reach. No near-term kill condition from this channel.".to_string()
+            }
+        };
+        println!("  {}", verdict);
     }
 
     let scales = amendment.mass_scales();
@@ -419,9 +451,17 @@ pub fn print_amendment(path: &std::path::Path) {
         }
     );
     println!("  Parameters fitted to the prediction: 0");
+    let mut predicted = Vec::new();
+    if report.prediction.is_some() {
+        predicted.push(format!("{}(M_Z)", COUPLING_NAMES[k]));
+    }
+    if report.proton.is_some() {
+        predicted.push("proton lifetime".to_string());
+    }
     println!(
-        "  Testable predictions: {}",
-        if report.prediction.is_some() { 1 } else { 0 }
+        "  Predictions: {}{}",
+        predicted.len(),
+        if predicted.is_empty() { String::new() } else { format!(" ({})", predicted.join(", ")) }
     );
     println!("\nNote: one-loop running. Two-loop and threshold corrections shift alpha_s by a few percent.");
 }

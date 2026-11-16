@@ -60,6 +60,9 @@ pub const M_Z: f64 = 91.1876;
 /// W boson mass (GeV).
 pub const M_W: f64 = 80.377;
 
+/// Proton mass (GeV).
+pub const M_PROTON: f64 = 0.93827208816;
+
 /// Higgs boson mass (GeV).
 pub const M_H: f64 = 125.20;
 
