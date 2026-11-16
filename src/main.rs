@@ -31,5 +31,11 @@ fn main() {
         Commands::Coupling { name, scale } => {
             display::print_coupling(&name, scale);
         }
+        Commands::Unification { susy_scale } => {
+            display::print_unification(susy_scale);
+        }
+        Commands::Amend { file } => {
+            display::print_amendment(&file);
+        }
     }
 }

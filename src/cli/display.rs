@@ -2,11 +2,13 @@ use comfy_table::{Cell, Table};
 
 use crate::couplings::constants::*;
 use crate::couplings::running;
+use crate::couplings::unification;
 use crate::cross_section::total::total_cross_section_2to2_with_points;
 use crate::decay::tables;
 use crate::matrix_elements::ee_mumu::EpEmToMuPMuM;
 use crate::matrix_elements::ee_qqbar::EpEmToQQbar;
 use crate::matrix_elements::ee_ww::EpEmToWpWm;
+use crate::model::{self, gates::Verdict, spec::COUPLING_NAMES, Amendment};
 use crate::monte_carlo::sampler::EventGenerator;
 use crate::particles;
 
@@ -266,4 +268,160 @@ pub fn print_coupling(name: &str, scale: Option<f64>) {
             eprintln!("  gw        - Weak coupling constant");
         }
     }
+}
+
+pub fn print_unification(susy_scale: Option<f64>) {
+    let names = ["1/alpha_1 (U(1)_Y)", "1/alpha_2 (SU(2)_L)", "1/alpha_3 (SU(3)_c)"];
+    let short = ["alpha_1", "alpha_2", "alpha_3"];
+
+    match susy_scale {
+        Some(ms) => println!("Model: SM below {:.0} GeV, MSSM above (one-loop)", ms),
+        None => println!("Model: Standard Model (one-loop)"),
+    }
+    println!("alpha_1 uses GUT normalization: alpha_1 = (5/3) alpha_em / cos^2(theta_W)\n");
+
+    let mut table = Table::new();
+    table.set_header(vec!["Q (GeV)", names[0], names[1], names[2]]);
+    for exp in [2, 4, 6, 8, 10, 12, 14, 15, 16, 17, 18, 19] {
+        let q = if exp == 2 { M_Z } else { 10f64.powi(exp) };
+        let a = unification::inverse_couplings(q, susy_scale);
+        table.add_row(vec![
+            Cell::new(format!("{:.3e}", q)),
+            Cell::new(format!("{:.2}", a[0])),
+            Cell::new(format!("{:.2}", a[1])),
+            Cell::new(format!("{:.2}", a[2])),
+        ]);
+    }
+    println!("{table}");
+
+    println!("\nPairwise crossings:");
+    for c in unification::crossings(susy_scale).iter().flatten() {
+        println!(
+            "  {} = {}  at Q = {:.2e} GeV  (1/alpha = {:.2})",
+            short[c.pair.0], short[c.pair.1], c.scale, c.inverse_alpha
+        );
+    }
+
+    let (q, spread) = unification::closest_approach(susy_scale);
+    println!(
+        "\nClosest approach: Q = {:.2e} GeV, spread in 1/alpha = {:.2}",
+        q, spread
+    );
+    if spread < 1.0 {
+        println!("The three couplings meet within one-loop accuracy.");
+    } else {
+        println!("The three couplings miss each other. Try --susy-scale 1000.");
+    }
+}
+
+fn fmt_b(b: [f64; 3]) -> String {
+    format!("({:.3}, {:.3}, {:.3})", b[0], b[1], b[2])
+}
+
+pub fn print_amendment(path: &std::path::Path) {
+    let amendment = match Amendment::from_file(path) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    };
+    let report = model::evaluate(&amendment);
+    let (i, j) = amendment.inputs;
+    let k = amendment.predicted;
+
+    println!("{}", amendment.name);
+    if let Some(d) = &amendment.description {
+        println!("{}", d);
+    }
+    println!(
+        "\nInputs (measured): {}, {}    Held out (predicted): {}",
+        COUPLING_NAMES[i], COUPLING_NAMES[j], COUPLING_NAMES[k]
+    );
+
+    if !amendment.added.is_empty() {
+        let mut table = Table::new();
+        table.set_header(vec!["Added field", "Kind", "SU(3)", "SU(2)", "Y", "Copies", "Mass (GeV)"]);
+        for f in &amendment.added {
+            table.add_row(vec![
+                Cell::new(&f.name),
+                Cell::new(format!("{:?}", f.kind)),
+                Cell::new(f.su3.label()),
+                Cell::new(f.su2),
+                Cell::new(format!("{:+.4}", f.y)),
+                Cell::new(f.copies),
+                Cell::new(format!("{:.3e}", f.mass)),
+            ]);
+        }
+        println!("{table}");
+    }
+
+    println!("\nBeta coefficients (b1, b2, b3) by energy range:");
+    for s in &report.segments {
+        println!("  {:.2e} - {:.2e} GeV   {}", s.lo, s.hi, fmt_b(s.b));
+    }
+
+    println!("\nConsistency gates:");
+    for g in &report.gates {
+        let mark = match g.verdict {
+            Verdict::Pass => "PASS",
+            Verdict::Warn => "WARN",
+            Verdict::Fail => "FAIL",
+        };
+        println!("  [{}] {:<20} {}", mark, g.name, g.detail);
+    }
+    match report.landau_pole {
+        Some(q) => println!("  [FAIL] {:<20} a coupling diverges at {:.2e} GeV", "perturbativity", q),
+        None => println!("  [PASS] {:<20} all couplings finite up to 1e19 GeV", "perturbativity"),
+    }
+    if !report.gates_passed() {
+        println!("\nThe model is inconsistent; its predictions are shown for reference only.");
+    }
+
+    println!("\nPrediction:");
+    match &report.prediction {
+        Some(p) => {
+            println!(
+                "  {} = {} at M_GUT = {:.2e} GeV, 1/alpha_GUT = {:.2}",
+                COUPLING_NAMES[i], COUPLING_NAMES[j], p.m_gut, p.inverse_alpha_gut
+            );
+            println!(
+                "  {}(M_Z) predicted = {:.4}   measured = {:.4}   ({:+.1}%)",
+                COUPLING_NAMES[k],
+                p.alpha_predicted(),
+                p.alpha_measured(),
+                100.0 * p.relative_error()
+            );
+            println!(
+                "  1/{} predicted = {:.3}   measured = {:.3}   pull = {:+.1} sigma (experimental only)",
+                COUPLING_NAMES[k], p.inverse_predicted, p.inverse_measured, p.pull
+            );
+        }
+        None => println!(
+            "  {} and {} never meet below 1e19 GeV (or only beyond a Landau pole): no prediction.",
+            COUPLING_NAMES[i], COUPLING_NAMES[j]
+        ),
+    }
+
+    let scales = amendment.mass_scales();
+    println!("\nLedger:");
+    println!(
+        "  Parameters set by hand: {} mass scale{}{}",
+        scales.len(),
+        if scales.len() == 1 { "" } else { "s" },
+        if scales.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " ({})",
+                scales.iter().map(|m| format!("{:.2e} GeV", m)).collect::<Vec<_>>().join(", ")
+            )
+        }
+    );
+    println!("  Parameters fitted to the prediction: 0");
+    println!(
+        "  Testable predictions: {}",
+        if report.prediction.is_some() { 1 } else { 0 }
+    );
+    println!("\nNote: one-loop running. Two-loop and threshold corrections shift alpha_s by a few percent.");
 }

@@ -4,6 +4,7 @@ pub mod decay;
 pub mod dirac;
 pub mod kinematics;
 pub mod matrix_elements;
+pub mod model;
 pub mod monte_carlo;
 pub mod particles;
 pub mod phase_space;
@@ -32,6 +33,9 @@ pub enum RealityError {
 
     #[error("Numerical error: {0}")]
     Numerical(String),
+
+    #[error("Invalid model: {0}")]
+    InvalidModel(String),
 }
 
 pub type Result<T> = std::result::Result<T, RealityError>;

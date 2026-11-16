@@ -1,0 +1,76 @@
+# Split supersymmetry: fermionic superpartners near 1 TeV, scalars far heavier.
+# The gauginos and higgsinos carry most of the effect on unification.
+name = "Split SUSY, scalars at 1e9 GeV"
+description = "Gauginos and higgsinos at 1 TeV; squarks, sleptons and the second Higgs at 1e9 GeV."
+inputs = ["alpha_1", "alpha_2"]
+
+[[field]]
+name = "gluino"
+kind = "weyl"
+su3 = "8"
+mass = 1000
+
+[[field]]
+name = "wino"
+kind = "weyl"
+su2 = 3
+mass = 1000
+
+[[field]]
+name = "bino"
+kind = "weyl"
+mass = 1000
+
+[[field]]
+name = "higgsinos"
+kind = "dirac"
+su2 = 2
+y = "1/2"
+mass = 1000
+
+[[field]]
+name = "second Higgs doublet"
+kind = "complex_scalar"
+su2 = 2
+y = "-1/2"
+mass = 1e9
+
+[[field]]
+name = "squark doublets"
+kind = "complex_scalar"
+su3 = "3"
+su2 = 2
+y = "1/6"
+copies = 3
+mass = 1e9
+
+[[field]]
+name = "up squarks"
+kind = "complex_scalar"
+su3 = "3bar"
+y = "-2/3"
+copies = 3
+mass = 1e9
+
+[[field]]
+name = "down squarks"
+kind = "complex_scalar"
+su3 = "3bar"
+y = "1/3"
+copies = 3
+mass = 1e9
+
+[[field]]
+name = "slepton doublets"
+kind = "complex_scalar"
+su2 = 2
+y = "-1/2"
+copies = 3
+mass = 1e9
+
+[[field]]
+name = "selectrons"
+kind = "complex_scalar"
+y = "1"
+copies = 3
+mass = 1e9

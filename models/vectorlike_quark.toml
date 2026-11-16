@@ -1,0 +1,13 @@
+# A vectorlike copy of the quark doublet: anomaly-free by construction,
+# a common ingredient in composite-Higgs and flavour models.
+name = "Vectorlike quark doublet at 2 TeV"
+description = "One Dirac quark doublet with the same quantum numbers as Q."
+inputs = ["alpha_1", "alpha_2"]
+
+[[field]]
+name = "vectorlike Q"
+kind = "dirac"
+su3 = "3"
+su2 = 2
+y = "1/6"
+mass = 2000

@@ -1,0 +1,4 @@
+# The Standard Model alone. No new fields, no new parameters.
+name = "Standard Model"
+description = "Baseline: does the SM predict alpha_s from alpha_1, alpha_2 and unification?"
+inputs = ["alpha_1", "alpha_2"]

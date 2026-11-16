@@ -1,0 +1,76 @@
+# Minimal supersymmetry with every superpartner at one mass scale.
+# Change the masses to see how sensitive the alpha_s prediction is.
+name = "MSSM, superpartners at 1 TeV"
+description = "Every Standard Model particle gets a superpartner, plus a second Higgs doublet."
+inputs = ["alpha_1", "alpha_2"]
+
+[[field]]
+name = "gluino"
+kind = "weyl"
+su3 = "8"
+mass = 1000
+
+[[field]]
+name = "wino"
+kind = "weyl"
+su2 = 3
+mass = 1000
+
+[[field]]
+name = "bino"
+kind = "weyl"
+mass = 1000
+
+[[field]]
+name = "higgsinos"
+kind = "dirac"
+su2 = 2
+y = "1/2"
+mass = 1000
+
+[[field]]
+name = "second Higgs doublet"
+kind = "complex_scalar"
+su2 = 2
+y = "-1/2"
+mass = 1000
+
+[[field]]
+name = "squark doublets"
+kind = "complex_scalar"
+su3 = "3"
+su2 = 2
+y = "1/6"
+copies = 3
+mass = 1000
+
+[[field]]
+name = "up squarks"
+kind = "complex_scalar"
+su3 = "3bar"
+y = "-2/3"
+copies = 3
+mass = 1000
+
+[[field]]
+name = "down squarks"
+kind = "complex_scalar"
+su3 = "3bar"
+y = "1/3"
+copies = 3
+mass = 1000
+
+[[field]]
+name = "slepton doublets"
+kind = "complex_scalar"
+su2 = 2
+y = "-1/2"
+copies = 3
+mass = 1000
+
+[[field]]
+name = "selectrons"
+kind = "complex_scalar"
+y = "1"
+copies = 3
+mass = 1000

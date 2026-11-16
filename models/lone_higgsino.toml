@@ -1,0 +1,12 @@
+# A deliberately broken amendment: a single chiral higgsino.
+# It fails anomaly cancellation and the Witten SU(2) test before any data is consulted.
+name = "Lone higgsino (inconsistent)"
+description = "Shows the consistency gates rejecting a model."
+inputs = ["alpha_1", "alpha_2"]
+
+[[field]]
+name = "higgsino"
+kind = "weyl"
+su2 = 2
+y = "1/2"
+mass = 500

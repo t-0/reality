@@ -72,4 +72,17 @@ pub enum Commands {
         #[arg(long)]
         scale: Option<f64>,
     },
+
+    /// Run the three gauge couplings to high energy and test grand unification
+    Unification {
+        /// Superpartner mass scale in GeV; above it the MSSM beta functions apply
+        #[arg(long)]
+        susy_scale: Option<f64>,
+    },
+
+    /// Evaluate a model amendment file: consistency gates and held-out predictions
+    Amend {
+        /// Path to a model file, e.g. models/mssm.toml
+        file: std::path::PathBuf,
+    },
 }
