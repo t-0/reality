@@ -657,3 +657,150 @@ pub fn print_scan(path: &std::path::Path, from: f64, to: f64, n: usize, loops: u
         );
     }
 }
+
+pub fn print_search(
+    max_fields: usize,
+    masses: Option<&str>,
+    loops: u8,
+    accept: f64,
+    top: usize,
+    write: Option<&std::path::Path>,
+) {
+    use crate::model::search::{self, SearchConfig};
+
+    let mut cfg = SearchConfig {
+        max_fields,
+        loops,
+        accept_sigma: accept,
+        ..SearchConfig::default()
+    };
+    if let Some(list) = masses {
+        let parsed: Result<Vec<f64>, _> = list.split(',').map(|m| m.trim().parse::<f64>()).collect();
+        match parsed {
+            Ok(mut m) if !m.is_empty() && m.iter().all(|&x| x > 0.0) => {
+                m.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                m.dedup();
+                cfg.masses = m;
+            }
+            _ => {
+                eprintln!("--masses must be a comma-separated list of positive numbers, e.g. 1e3,1e6,1e9");
+                std::process::exit(1);
+            }
+        }
+    }
+    if max_fields == 0 || max_fields > 4 {
+        eprintln!("--max-fields must be between 1 and 4.");
+        std::process::exit(1);
+    }
+
+    let menu = search::menu();
+    println!(
+        "Searching SM + up to {} of {} multiplets at {} masses ({:.0e} - {:.0e} GeV)...",
+        max_fields,
+        menu.len(),
+        cfg.masses.len(),
+        cfg.masses[0],
+        cfg.masses[cfg.masses.len() - 1]
+    );
+    let result = search::search(&cfg);
+    println!(
+        "Evaluated {} candidates at one loop; {} passed the screen; {} accepted at {} loop{}.",
+        result.evaluated,
+        result.screened,
+        result.hits.len(),
+        loops,
+        if loops == 1 { "" } else { "s" }
+    );
+    println!(
+        "Acceptance: |pull| <= {}, proton lifetime above Super-K, M_GUT <= 1e18 GeV, perturbative.\n",
+        accept
+    );
+    if let Some(b) = &result.baseline {
+        println!(
+            "Baseline SM: alpha_s(M_Z) = {:.4}, pull {:+.1} sigma.\n",
+            b.alpha_predicted(),
+            b.pull
+        );
+    }
+
+    let mut shown = Vec::new();
+    for n in 1..=max_fields {
+        let group: Vec<_> = result.hits.iter().filter(|h| h.fields() == n).collect();
+        println!(
+            "{} new multiplet{}: {} accepted",
+            n,
+            if n == 1 { "" } else { "s" },
+            group.len()
+        );
+        if group.is_empty() {
+            println!();
+            continue;
+        }
+        let mut table = Table::new();
+        table.set_header(vec![
+            "Added (mass in GeV)",
+            "alpha_s",
+            "Pull",
+            "M_GUT (GeV)",
+            "tau_p (yr)",
+            "Scales",
+            "States",
+            "Test",
+        ]);
+        for h in group.iter().take(top) {
+            let fields = h
+                .amendment
+                .added
+                .iter()
+                .map(|f| {
+                    format!(
+                        "{}{} @ {:.0e}",
+                        if f.copies > 1 { format!("{} x ", f.copies) } else { String::new() },
+                        f.name,
+                        f.mass
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            let mut tests = Vec::new();
+            if h.proton.lifetime_years < proton::HYPER_K_REACH_YEARS * proton::UNCERTAINTY_FACTOR {
+                tests.push("Hyper-K");
+            }
+            if h.lightest_coloured.map_or(false, |m| m <= 1e4) {
+                tests.push("collider");
+            }
+            table.add_row(vec![
+                Cell::new(fields),
+                Cell::new(format!("{:.4}", h.prediction.alpha_predicted())),
+                Cell::new(format!("{:+.2}", h.prediction.pull)),
+                Cell::new(format!("{:.1e}", h.prediction.m_gut)),
+                Cell::new(format!("{:.0e}", h.proton.lifetime_years)),
+                Cell::new(h.mass_scales),
+                Cell::new(h.new_states),
+                Cell::new(if tests.is_empty() { "-".to_string() } else { tests.join(", ") }),
+            ]);
+            shown.push(*h);
+        }
+        println!("{table}\n");
+    }
+    println!("Sorted by: fewest multiplets, then fewest mass scales, then fewest new states, then |pull|.");
+    println!("Test: Hyper-K = proton decay within ~10x of Hyper-K reach; collider = coloured state at or below 10 TeV.");
+
+    if let Some(dir) = write {
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            eprintln!("cannot create {}: {}", dir.display(), e);
+            std::process::exit(1);
+        }
+        let mut counts = std::collections::HashMap::new();
+        for h in &shown {
+            let rank = counts.entry(h.fields()).or_insert(0);
+            *rank += 1;
+            let path = dir.join(format!("search_{}f_{}.toml", h.fields(), rank));
+            if let Err(e) = std::fs::write(&path, search::to_toml(h)) {
+                eprintln!("cannot write {}: {}", path.display(), e);
+                std::process::exit(1);
+            }
+        }
+        println!("\nWrote {} model files to {}.", shown.len(), dir.display());
+    }
+}

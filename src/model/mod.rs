@@ -7,6 +7,7 @@ pub mod predict;
 pub mod proton;
 pub mod running;
 pub mod scan;
+pub mod search;
 pub mod sm;
 pub mod spec;
 pub mod two_loop;

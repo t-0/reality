@@ -47,5 +47,15 @@ fn main() {
         } => {
             display::print_scan(&file, from, to, points, loops, &format);
         }
+        Commands::Search {
+            max_fields,
+            masses,
+            loops,
+            accept,
+            top,
+            write,
+        } => {
+            display::print_search(max_fields, masses.as_deref(), loops, accept, top, write.as_deref());
+        }
     }
 }

@@ -41,7 +41,7 @@ pub struct Prediction {
 }
 
 impl Prediction {
-    fn new(
+    pub(crate) fn new(
         loops: u8,
         inputs: (usize, usize),
         predicted: usize,

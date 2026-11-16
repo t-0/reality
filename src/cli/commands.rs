@@ -115,4 +115,31 @@ pub enum Commands {
         #[arg(long, default_value = "table")]
         format: String,
     },
+
+    /// Search for non-supersymmetric additions to the SM that unify and survive
+    Search {
+        /// Largest number of new multiplets per candidate
+        #[arg(long, default_value = "3")]
+        max_fields: usize,
+
+        /// Comma-separated mass grid in GeV (default 1e3,1e4,1e5,1e6,1e8,1e10,1e12)
+        #[arg(long)]
+        masses: Option<String>,
+
+        /// Loop order for the final evaluation: 1 or 2
+        #[arg(long, default_value = "2", value_parser = clap::value_parser!(u8).range(1..=2))]
+        loops: u8,
+
+        /// Accept candidates with |pull| at or below this
+        #[arg(long, default_value = "1.0")]
+        accept: f64,
+
+        /// Candidates to show for each number of fields
+        #[arg(long, default_value = "5")]
+        top: usize,
+
+        /// Write the shown candidates as model files into this directory
+        #[arg(long)]
+        write: Option<std::path::PathBuf>,
+    },
 }
