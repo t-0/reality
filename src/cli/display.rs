@@ -487,3 +487,100 @@ pub fn print_amendment(path: &std::path::Path, loops: u8) {
         println!("\nNote: one-loop running. Two-loop and threshold corrections shift alpha_s by a few percent.");
     }
 }
+
+pub fn print_scan(path: &std::path::Path, from: f64, to: f64, n: usize, loops: u8, format: &str) {
+    use crate::model::scan;
+
+    if !(from > 0.0 && to > from && n >= 2) {
+        eprintln!("Need 0 < --from < --to and --points >= 2.");
+        std::process::exit(1);
+    }
+    let amendment = match Amendment::from_file(path) {
+        Ok(a) if !a.added.is_empty() => a,
+        Ok(_) => {
+            eprintln!("{} adds no fields, so there is no mass to scan.", path.display());
+            std::process::exit(1);
+        }
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    };
+    let k = amendment.predicted;
+    let points = scan::scan(&amendment, loops, &scan::log_grid(from, to, n));
+
+    if format == "csv" {
+        println!("mass_gev,{0}_predicted,{0}_measured,pull,m_gut_gev,inverse_alpha_gut,proton_lifetime_years", COUPLING_NAMES[k]);
+        for p in &points {
+            match (&p.prediction, &p.proton) {
+                (Some(pr), Some(pd)) => println!(
+                    "{:.6e},{:.6},{:.6},{:.4},{:.6e},{:.4},{:.6e}",
+                    p.mass,
+                    pr.alpha_predicted(),
+                    pr.alpha_measured(),
+                    pr.pull,
+                    pr.m_gut,
+                    pr.inverse_alpha_gut,
+                    pd.lifetime_years
+                ),
+                _ => println!("{:.6e},,,,,,", p.mass),
+            }
+        }
+        return;
+    }
+
+    println!("{}  ({}-loop)", amendment.name, loops);
+    println!("Scanning the lightest new mass; heavier fields keep their ratio to it.\n");
+    let mut table = Table::new();
+    table.set_header(vec![
+        "Mass (GeV)".to_string(),
+        format!("{} predicted", COUPLING_NAMES[k]),
+        "Pull".to_string(),
+        "M_GUT (GeV)".to_string(),
+        "Proton lifetime (yr)".to_string(),
+    ]);
+    for p in &points {
+        match (&p.prediction, &p.proton) {
+            (Some(pr), Some(pd)) => table.add_row(vec![
+                Cell::new(format!("{:.2e}", p.mass)),
+                Cell::new(format!("{:.4}", pr.alpha_predicted())),
+                Cell::new(format!("{:+.2}", pr.pull)),
+                Cell::new(format!("{:.2e}", pr.m_gut)),
+                Cell::new(format!("{:.1e}", pd.lifetime_years)),
+            ]),
+            _ => table.add_row(vec![
+                Cell::new(format!("{:.2e}", p.mass)),
+                Cell::new("no unification"),
+                Cell::new(""),
+                Cell::new(""),
+                Cell::new(""),
+            ]),
+        };
+    }
+    println!("{table}");
+
+    if let Some(m) = points.iter().find_map(|p| p.prediction.as_ref()).map(|p| p.alpha_measured()) {
+        println!("\nMeasured {}(M_Z) = {:.4}", COUPLING_NAMES[k], m);
+    }
+    match scan::best_fit(&points) {
+        Some((m, pull)) if pull == 0.0 => println!("Best fit: {:.2e} GeV (pull crosses zero)", m),
+        Some((m, pull)) => println!(
+            "Closest: {:.2e} GeV with pull {:+.2} (never reaches zero in this range)",
+            m, pull
+        ),
+        None => println!("No mass in this range gives unification."),
+    }
+    for n_sigma in [1.0, 2.0] {
+        let ranges = scan::allowed_ranges(&points, n_sigma);
+        let text = if ranges.is_empty() {
+            "none".to_string()
+        } else {
+            ranges
+                .iter()
+                .map(|(a, b)| format!("{:.2e} - {:.2e} GeV", a, b))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        println!("Within {} sigma: {}", n_sigma, text);
+    }
+}

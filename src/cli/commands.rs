@@ -89,4 +89,30 @@ pub enum Commands {
         #[arg(long, default_value = "2", value_parser = clap::value_parser!(u8).range(1..=2))]
         loops: u8,
     },
+
+    /// Scan an amendment over the mass of its new fields and find the best fit
+    Scan {
+        /// Path to a model file, e.g. models/mssm.toml
+        file: std::path::PathBuf,
+
+        /// Lowest mass of the lightest new field (GeV)
+        #[arg(long, default_value = "100")]
+        from: f64,
+
+        /// Highest mass of the lightest new field (GeV)
+        #[arg(long, default_value = "1e7")]
+        to: f64,
+
+        /// Number of masses, evenly spaced in log
+        #[arg(long, default_value = "31")]
+        points: usize,
+
+        /// Loop order of the running: 1 or 2
+        #[arg(long, default_value = "2", value_parser = clap::value_parser!(u8).range(1..=2))]
+        loops: u8,
+
+        /// Output format: "table" or "csv"
+        #[arg(long, default_value = "table")]
+        format: String,
+    },
 }

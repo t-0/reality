@@ -37,5 +37,15 @@ fn main() {
         Commands::Amend { file, loops } => {
             display::print_amendment(&file, loops);
         }
+        Commands::Scan {
+            file,
+            from,
+            to,
+            points,
+            loops,
+            format,
+        } => {
+            display::print_scan(&file, from, to, points, loops, &format);
+        }
     }
 }
