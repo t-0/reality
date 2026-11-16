@@ -144,8 +144,10 @@ impl MatrixElement for EpEmToWpWm {
                             jt_z += j_z[mu] * t_mu * m;
                         }
 
-                        // s-channel photon: M_γ = (e²/s) × J_γ · T
-                        let m_gamma = Complex64::new(e2 / s, 0.0) * jt_gamma;
+                        // s-channel photon: M_γ = (Q_e e²/s) × J_γ · T with Q_e = -1.
+                        // The sign is what lets the photon cancel the Q-dependent part
+                        // of the Z coupling at high energy.
+                        let m_gamma = Complex64::new(-e2 / s, 0.0) * jt_gamma;
 
                         // s-channel Z: M_Z = [e²/(2sin²θ_W)] × D_Z × J_Z · T
                         let m_z = Complex64::new(e2 / (2.0 * sw2), 0.0) * d_z * jt_z;
@@ -267,17 +269,27 @@ mod tests {
 
     #[test]
     fn test_threshold_behavior() {
-        // Near threshold, σ → 0 as √s → 2M_W
+        // Near threshold the t-channel neutrino dominates and sigma rises linearly
+        // in beta (S-wave): sigma -> pi alpha^2 beta / (sin^4(theta_W) s).
         let me = EpEmToWpWm;
-        let sigma_threshold = total_cross_section_2to2(&me, 2.0 * M_W + 0.5);
-        let sigma_200 = total_cross_section_2to2(&me, 200.0);
-
-        assert!(
-            sigma_threshold < sigma_200 * 0.01,
-            "σ near threshold = {} nb should be much smaller than σ(200) = {} nb",
-            sigma_threshold,
-            sigma_200
-        );
+        let leading = |sqrt_s: f64| {
+            let s = sqrt_s * sqrt_s;
+            let beta = (1.0 - 4.0 * M_W * M_W / s).sqrt();
+            PI * ALPHA_EM_MZ * ALPHA_EM_MZ * beta / (SIN2_THETA_W * SIN2_THETA_W * s) * GEV2_TO_NB
+        };
+        for de in [0.05, 0.5] {
+            let sqrt_s = 2.0 * M_W + de;
+            let sigma = total_cross_section_2to2(&me, sqrt_s);
+            let expected = leading(sqrt_s);
+            assert!(
+                (sigma / expected - 1.0).abs() < 0.03,
+                "sqrt(s) = 2 M_W + {} GeV: sigma = {} nb, leading-order threshold formula = {} nb",
+                de,
+                sigma,
+                expected
+            );
+        }
+        assert_eq!(total_cross_section_2to2(&me, 2.0 * M_W - 0.1), 0.0);
     }
 
     #[test]
@@ -354,7 +366,7 @@ mod tests {
                             jt_z += j_z[mu] * t_mu * metric_diag[mu];
                         }
 
-                        let m_gamma = Complex64::new(e2 / s, 0.0) * jt_gamma;
+                        let m_gamma = Complex64::new(-e2 / s, 0.0) * jt_gamma;
                         let m_z = Complex64::new(e2 / (2.0 * sw2), 0.0) * d_z * jt_z;
 
                         let chain = DiracMatrix::slash_complex(&eps2c)
