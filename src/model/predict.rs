@@ -1,7 +1,6 @@
 use super::gates::{self, Gate, Verdict};
 use super::proton::ProtonDecay;
 use super::running::{Running, Segment};
-use super::field::Field;
 use super::spec::Amendment;
 use super::two_loop::TwoLoop;
 use crate::couplings::unification::inverse_couplings_mz;
@@ -80,6 +79,23 @@ impl Prediction {
     }
 }
 
+/// Spread of the prediction over the corners of the heavy-field ratio ranges.
+#[derive(Debug, Clone, Copy)]
+pub struct ThresholdBand {
+    pub alpha_min: f64,
+    pub alpha_max: f64,
+    pub m_gut_min: f64,
+    pub m_gut_max: f64,
+    /// Number of ratio combinations evaluated.
+    pub corners: usize,
+}
+
+impl ThresholdBand {
+    pub fn contains(&self, alpha: f64) -> bool {
+        self.alpha_min <= alpha && alpha <= self.alpha_max
+    }
+}
+
 /// Everything computed for one amendment.
 #[derive(Debug, Clone)]
 pub struct Report {
@@ -88,6 +104,8 @@ pub struct Report {
     pub segments: Vec<Segment>,
     pub landau_pole: Option<f64>,
     pub prediction: Option<Prediction>,
+    /// Range of the prediction from GUT-scale thresholds, if any are varied.
+    pub thresholds: Option<ThresholdBand>,
     pub proton: Option<ProtonDecay>,
 }
 
@@ -100,23 +118,50 @@ impl Report {
 /// Hold out one coupling, require the other two to meet, and run the
 /// held-out coupling back down from that point. One loop: in each segment
 /// 1/alpha is linear in ln Q, so 1/alpha_k(M_Z) = 1/alpha_GUT + Delta_k(M_GUT).
-pub fn predict(running: &Running, inputs: (usize, usize), predicted: usize) -> Option<Prediction> {
+///
+/// `shift` holds the GUT threshold corrections: unification means
+/// 1/alpha_i(M_X) + shift_i = 1/alpha_GUT for all i, with M_X the X boson mass.
+pub fn predict(
+    running: &Running,
+    inputs: (usize, usize),
+    predicted: usize,
+    shift: [f64; 3],
+) -> Option<Prediction> {
     let inv_mz = inverse_couplings_mz();
     let (i, j) = inputs;
-    let m_gut = running.crossing(inv_mz, i, j)?;
-    let inverse_alpha_gut = running.inverse_at(inv_mz, m_gut)[i];
-    let inverse_predicted = inverse_alpha_gut + running.delta(m_gut)[predicted];
+    let m_gut = running.crossing(inv_mz, i, j, shift)?;
+    let inverse_alpha_gut = running.inverse_at(inv_mz, m_gut)[i] + shift[i];
+    let inverse_predicted = inverse_alpha_gut - shift[predicted] + running.delta(m_gut)[predicted];
     Some(Prediction::new(1, inputs, predicted, m_gut, inverse_alpha_gut, inverse_predicted))
 }
 
 /// Two-loop version: the held-out coupling feeds back into the running of the
 /// inputs, so it is found by shooting, seeded with the one-loop answer.
-fn predict_two_loop(amendment: &Amendment, fields: &[Field], one_loop: &Prediction) -> Option<Prediction> {
-    let two = TwoLoop::new(fields, amendment.top_yukawa);
+fn predict_two_loop(
+    amendment: &Amendment,
+    two: &TwoLoop,
+    one_loop: &Prediction,
+    shift: [f64; 3],
+) -> Option<Prediction> {
     let (i, j) = amendment.inputs;
     let k = amendment.predicted;
-    let (x, p) = two.solve(inverse_couplings_mz(), (i, j), k, one_loop.inverse_predicted)?;
-    Some(Prediction::new(2, (i, j), k, p.ln_q.exp(), p.inv[i], x))
+    let (x, p) = two.solve(inverse_couplings_mz(), (i, j), k, one_loop.inverse_predicted, shift)?;
+    Some(Prediction::new(2, (i, j), k, p.ln_q.exp(), p.inv[i] + shift[i], x))
+}
+
+/// Prediction at the given loop order for one set of heavy-field ratios.
+fn predict_with(
+    amendment: &Amendment,
+    running: &Running,
+    two: Option<&TwoLoop>,
+    ratios: &[f64],
+) -> Option<Prediction> {
+    let shift = amendment.threshold_shift(ratios);
+    let one = predict(running, amendment.inputs, amendment.predicted, shift)?;
+    match two {
+        Some(t) => predict_two_loop(amendment, t, &one, shift),
+        None => Some(one),
+    }
 }
 
 /// Evaluate an amendment with one- or two-loop running.
@@ -124,11 +169,29 @@ pub fn evaluate(amendment: &Amendment, loops: u8) -> Report {
     let fields = amendment.all_fields();
     let running = Running::new(&fields);
     let landau_pole = running.landau_pole(inverse_couplings_mz());
-    let mut prediction = predict(&running, amendment.inputs, amendment.predicted);
-    if loops >= 2 {
-        prediction = prediction.and_then(|p| predict_two_loop(amendment, &fields, &p));
-    }
-    let prediction = prediction.filter(|p| landau_pole.map_or(true, |pole| p.m_gut < pole));
+    let two = (loops >= 2).then(|| TwoLoop::new(&fields, amendment.top_yukawa));
+    let below_pole = |p: &Prediction| landau_pole.map_or(true, |pole| p.m_gut < pole);
+    let prediction = predict_with(amendment, &running, two.as_ref(), &amendment.central_ratios())
+        .filter(|p| below_pole(p));
+
+    let corners: Vec<Prediction> = amendment
+        .ratio_corners()
+        .iter()
+        .filter_map(|r| predict_with(amendment, &running, two.as_ref(), r))
+        .filter(|p| below_pole(p))
+        .collect();
+    let thresholds = (!corners.is_empty() && prediction.is_some()).then(|| {
+        let fold = |f: fn(&Prediction) -> f64, init: f64, op: fn(f64, f64) -> f64| {
+            corners.iter().map(f).fold(init, op)
+        };
+        ThresholdBand {
+            alpha_min: fold(|p| p.alpha_predicted(), f64::MAX, f64::min),
+            alpha_max: fold(|p| p.alpha_predicted(), f64::MIN, f64::max),
+            m_gut_min: fold(|p| p.m_gut, f64::MAX, f64::min),
+            m_gut_max: fold(|p| p.m_gut, f64::MIN, f64::max),
+            corners: corners.len(),
+        }
+    });
     let proton = prediction
         .as_ref()
         .map(|p| ProtonDecay::estimate(p.m_gut, p.inverse_alpha_gut));
@@ -138,6 +201,7 @@ pub fn evaluate(amendment: &Amendment, loops: u8) -> Report {
         segments: running.segments.clone(),
         landau_pole,
         prediction,
+        thresholds,
         proton,
     }
 }
@@ -145,6 +209,7 @@ pub fn evaluate(amendment: &Amendment, loops: u8) -> Report {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::couplings::constants::M_Z;
 
     fn eval(toml: &str) -> Report {
         evaluate(&Amendment::from_toml(toml).unwrap(), 1)
@@ -166,6 +231,41 @@ mod tests {
         let p = r.prediction.unwrap();
         assert_eq!(p.predicted, 0);
         assert!(p.m_gut > 1e16 && p.m_gut < 1e18);
+    }
+
+    #[test]
+    fn test_su5_thresholds() {
+        let base = Amendment::from_toml(include_str!("../../models/mssm.toml")).unwrap();
+        let su5 = Amendment::from_toml(include_str!("../../models/mssm_su5.toml")).unwrap();
+        let r0 = evaluate(&base, 2);
+        let r = evaluate(&su5, 2);
+        // Central ratios are all 1, so the central prediction is unchanged.
+        let (a0, a) = (r0.prediction.unwrap().alpha_predicted(), r.prediction.unwrap().alpha_predicted());
+        assert!((a - a0).abs() < 1e-6, "{} vs {}", a, a0);
+        let band = r.thresholds.unwrap();
+        assert_eq!(band.corners, 4);
+        assert!(band.alpha_min < a && a < band.alpha_max);
+
+        // A lighter colour-triplet Higgs lowers the predicted alpha_s
+        // (the well-known tension with dimension-5 proton decay).
+        let shift = |r_hc: f64| su5.threshold_shift(&[1.0, r_hc, 1.0, 1.0]);
+        let running = Running::new(&su5.all_fields());
+        let light = predict(&running, su5.inputs, su5.predicted, shift(0.1)).unwrap();
+        let heavy = predict(&running, su5.inputs, su5.predicted, shift(10.0)).unwrap();
+        assert!(light.alpha_predicted() < heavy.alpha_predicted());
+
+        // Hisano-Murayama-Yanagida: at one loop, with all superpartners at M_S,
+        // (3/a2 - 2/a3 - 1/a1)(M_Z) = [12/5 ln(M_HC/M_Z) - 2 ln(M_S/M_Z)] / (2 pi),
+        // whatever the X and Sigma masses are.
+        let inv = inverse_couplings_mz();
+        let m_s: f64 = 1000.0;
+        for ratios in [[1.0, 0.1, 1.0, 1.0], [1.0, 3.0, 10.0, 10.0], [1.0, 1.0, 0.1, 0.1]] {
+            let p = predict(&running, su5.inputs, su5.predicted, su5.threshold_shift(&ratios)).unwrap();
+            let lhs = 3.0 * inv[1] - 2.0 * p.inverse_predicted - inv[0];
+            let m_hc = ratios[1] * p.m_gut;
+            let rhs = (2.4 * (m_hc / M_Z).ln() - 2.0 * (m_s / M_Z).ln()) / (2.0 * std::f64::consts::PI);
+            assert!((lhs - rhs).abs() < 1e-6, "ratios {:?}: {} vs {}", ratios, lhs, rhs);
+        }
     }
 
     #[test]

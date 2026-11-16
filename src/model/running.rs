@@ -79,10 +79,11 @@ impl Running {
     }
 
     /// Scale between M_Z and Q_MAX where couplings i and j meet, by bisection in ln Q.
-    pub fn crossing(&self, inv_mz: [f64; 3], i: usize, j: usize) -> Option<f64> {
+    /// `shift` is added to each 1/alpha before comparing (GUT threshold matching).
+    pub fn crossing(&self, inv_mz: [f64; 3], i: usize, j: usize, shift: [f64; 3]) -> Option<f64> {
         let diff = |ln_q: f64| {
             let a = self.inverse_at(inv_mz, ln_q.exp());
-            a[i] - a[j]
+            (a[i] + shift[i]) - (a[j] + shift[j])
         };
         let (mut lo, mut hi) = (M_Z.ln(), Q_MAX.ln());
         if diff(lo).signum() == diff(hi).signum() {

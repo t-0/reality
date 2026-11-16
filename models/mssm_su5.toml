@@ -1,0 +1,111 @@
+# Minimal supersymmetric SU(5): the MSSM at 1 TeV plus the heavy fields at the
+# unification scale. Their masses relative to the X boson set the GUT threshold
+# corrections; the ranges below turn them into a band on the prediction.
+name = "MSSM + SU(5) GUT thresholds"
+description = "MSSM at 1 TeV with the X/Y bosons, colour-triplet Higgs and adjoint remnants of minimal SUSY SU(5)."
+inputs = ["alpha_1", "alpha_2"]
+
+# X and Y gauge bosons (with their superpartners). Their mass defines M_X.
+[[heavy]]
+name = "X, Y vector superfield"
+kind = "vector_superfield"
+su3 = "3"
+su2 = 2
+y = "-5/6"
+ratio = 1.0
+
+# Colour-triplet partners of the two Higgs doublets. Light ones speed up
+# proton decay through dimension-5 operators.
+[[heavy]]
+name = "colour-triplet Higgs H_C"
+kind = "chiral"
+su3 = "3"
+y = "-1/3"
+copies = 2
+ratio = [0.1, 10]
+
+# Remnants of the adjoint Higgs Sigma(24). In minimal SU(5) they share one mass.
+[[heavy]]
+name = "adjoint octet Sigma_8"
+kind = "chiral"
+su3 = "8"
+ratio = [0.1, 10]
+group = "sigma"
+
+[[heavy]]
+name = "adjoint triplet Sigma_3"
+kind = "chiral"
+su2 = 3
+ratio = [0.1, 10]
+group = "sigma"
+
+[[field]]
+name = "gluino"
+kind = "weyl"
+su3 = "8"
+mass = 1000
+
+[[field]]
+name = "wino"
+kind = "weyl"
+su2 = 3
+mass = 1000
+
+[[field]]
+name = "bino"
+kind = "weyl"
+mass = 1000
+
+[[field]]
+name = "higgsinos"
+kind = "dirac"
+su2 = 2
+y = "1/2"
+mass = 1000
+
+[[field]]
+name = "second Higgs doublet"
+kind = "complex_scalar"
+su2 = 2
+y = "-1/2"
+mass = 1000
+
+[[field]]
+name = "squark doublets"
+kind = "complex_scalar"
+su3 = "3"
+su2 = 2
+y = "1/6"
+copies = 3
+mass = 1000
+
+[[field]]
+name = "up squarks"
+kind = "complex_scalar"
+su3 = "3bar"
+y = "-2/3"
+copies = 3
+mass = 1000
+
+[[field]]
+name = "down squarks"
+kind = "complex_scalar"
+su3 = "3bar"
+y = "1/3"
+copies = 3
+mass = 1000
+
+[[field]]
+name = "slepton doublets"
+kind = "complex_scalar"
+su2 = 2
+y = "-1/2"
+copies = 3
+mass = 1000
+
+[[field]]
+name = "selectrons"
+kind = "complex_scalar"
+y = "1"
+copies = 3
+mass = 1000

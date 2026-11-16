@@ -74,6 +74,57 @@ fn default_inputs() -> Vec<String> {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum RatioSpec {
+    One(f64),
+    Range([f64; 2]),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HeavySpec {
+    name: String,
+    kind: Kind,
+    #[serde(default = "default_su3")]
+    su3: String,
+    #[serde(default = "default_su2")]
+    su2: u32,
+    #[serde(default = "default_y")]
+    y: Number,
+    #[serde(default = "default_copies")]
+    copies: u32,
+    /// Mass relative to the X boson mass M_X, either fixed or a range [low, high].
+    ratio: RatioSpec,
+    /// Heavy fields with the same group share one mass ratio.
+    #[serde(default)]
+    group: Option<String>,
+}
+
+/// A field at the unification scale, entering through threshold matching.
+#[derive(Debug, Clone)]
+pub struct HeavyField {
+    pub field: Field,
+    /// Range of M / M_X; equal ends mean a fixed ratio.
+    pub ratio: (f64, f64),
+    /// Fields in the same group share one ratio.
+    pub group: Option<String>,
+}
+
+impl HeavyField {
+    /// Geometric middle of the ratio range.
+    pub fn central_ratio(&self) -> f64 {
+        (self.ratio.0 * self.ratio.1).sqrt()
+    }
+
+    pub fn is_varied(&self) -> bool {
+        self.ratio.1 > self.ratio.0 * (1.0 + 1e-12)
+    }
+}
+
+/// Largest number of varied heavy fields; corners grow as 2^n.
+pub const MAX_VARIED_HEAVY: usize = 8;
+
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SpecFile {
     name: String,
@@ -87,6 +138,8 @@ struct SpecFile {
     top_yukawa: TopYukawa,
     #[serde(default)]
     field: Vec<FieldSpec>,
+    #[serde(default)]
+    heavy: Vec<HeavySpec>,
 }
 
 /// A model amendment: new fields on top of a base, plus the declared inputs.
@@ -104,6 +157,8 @@ pub struct Amendment {
     pub top_yukawa: TopYukawa,
     /// Fields added on top of the base.
     pub added: Vec<Field>,
+    /// Fields near the unification scale, matched at M_X instead of run.
+    pub heavy: Vec<HeavyField>,
 }
 
 impl Amendment {
@@ -139,12 +194,20 @@ impl Amendment {
         }
         let predicted = 3 - i - j;
 
+        let read_y = |y: &Number| match y {
+            Number::Text(s) => parse_rational(s),
+            Number::Value(v) => Ok(*v),
+        };
+
         let mut added = Vec::new();
         for f in spec.field {
-            let y = match &f.y {
-                Number::Text(s) => parse_rational(s)?,
-                Number::Value(v) => *v,
-            };
+            if f.kind.is_heavy_only() {
+                return Err(RealityError::InvalidModel(format!(
+                    "field '{}': kind {:?} is only allowed in [[heavy]]",
+                    f.name, f.kind
+                )));
+            }
+            let y = read_y(&f.y)?;
             if f.su2 == 0 {
                 return Err(RealityError::InvalidModel(format!(
                     "field '{}': su2 is the dimension of the representation and must be >= 1",
@@ -168,6 +231,57 @@ impl Amendment {
             });
         }
 
+        let mut heavy = Vec::new();
+        for h in spec.heavy {
+            let ratio = match h.ratio {
+                RatioSpec::One(r) => (r, r),
+                RatioSpec::Range([a, b]) => (a, b),
+            };
+            if !(ratio.0 > 0.0 && ratio.1 >= ratio.0) {
+                return Err(RealityError::InvalidModel(format!(
+                    "heavy field '{}': ratio must be positive, as r or [low, high] with low <= high",
+                    h.name
+                )));
+            }
+            if h.su2 == 0 {
+                return Err(RealityError::InvalidModel(format!(
+                    "heavy field '{}': su2 must be >= 1",
+                    h.name
+                )));
+            }
+            heavy.push(HeavyField {
+                field: Field {
+                    name: h.name,
+                    kind: h.kind,
+                    su3: Su3::parse(&h.su3)?,
+                    su2: h.su2,
+                    y: read_y(&h.y)?,
+                    copies: h.copies,
+                    mass: 0.0,
+                },
+                ratio,
+                group: h.group,
+            });
+        }
+        for a in &heavy {
+            for b in &heavy {
+                if a.group.is_some() && a.group == b.group && a.ratio != b.ratio {
+                    return Err(RealityError::InvalidModel(format!(
+                        "heavy fields '{}' and '{}' share group '{}' but have different ratios",
+                        a.field.name,
+                        b.field.name,
+                        a.group.as_deref().unwrap_or("")
+                    )));
+                }
+            }
+        }
+        if Self::varied_units_of(&heavy).len() > MAX_VARIED_HEAVY {
+            return Err(RealityError::InvalidModel(format!(
+                "at most {} independent heavy-field ratios may be varied",
+                MAX_VARIED_HEAVY
+            )));
+        }
+
         Ok(Self {
             name: spec.name,
             description: spec.description,
@@ -176,6 +290,7 @@ impl Amendment {
             predicted,
             top_yukawa: spec.top_yukawa,
             added,
+            heavy,
         })
     }
 
@@ -187,6 +302,65 @@ impl Amendment {
         };
         fields.extend(self.added.iter().cloned());
         fields
+    }
+
+    /// One-loop threshold matching at M_X: heavy field h with M_h = r_h M_X shifts
+    /// each 1/alpha_i(M_X) by b_i^h / (2 pi) * ln(r_h), so unification reads
+    /// 1/alpha_i(M_X) + shift_i = 1/alpha_GUT.
+    pub fn threshold_shift(&self, ratios: &[f64]) -> [f64; 3] {
+        let mut shift = [0.0; 3];
+        for (h, &r) in self.heavy.iter().zip(ratios) {
+            let b = h.field.beta_contribution();
+            for i in 0..3 {
+                shift[i] += b[i] / (2.0 * std::f64::consts::PI) * r.ln();
+            }
+        }
+        shift
+    }
+
+    pub fn central_ratios(&self) -> Vec<f64> {
+        self.heavy.iter().map(|h| h.central_ratio()).collect()
+    }
+
+    /// Independently varied ratios: each entry lists the heavy fields that share it.
+    fn varied_units_of(heavy: &[HeavyField]) -> Vec<Vec<usize>> {
+        let mut units: Vec<Vec<usize>> = Vec::new();
+        for (k, h) in heavy.iter().enumerate().filter(|(_, h)| h.is_varied()) {
+            let existing = h.group.as_ref().and_then(|g| {
+                units.iter().position(|u| heavy[u[0]].group.as_ref() == Some(g))
+            });
+            match existing {
+                Some(u) => units[u].push(k),
+                None => units.push(vec![k]),
+            }
+        }
+        units
+    }
+
+    /// Number of independent mass ratios varied over a range.
+    pub fn varied_ratio_count(&self) -> usize {
+        Self::varied_units_of(&self.heavy).len()
+    }
+
+    /// Every combination of range ends for the varied ratios (fixed ones keep
+    /// their value, grouped fields move together). Empty if nothing is varied.
+    pub fn ratio_corners(&self) -> Vec<Vec<f64>> {
+        let units = Self::varied_units_of(&self.heavy);
+        if units.is_empty() {
+            return Vec::new();
+        }
+        (0..1usize << units.len())
+            .map(|mask| {
+                let mut r = self.central_ratios();
+                for (bit, unit) in units.iter().enumerate() {
+                    for &k in unit {
+                        let (lo, hi) = self.heavy[k].ratio;
+                        r[k] = if mask & (1 << bit) != 0 { hi } else { lo };
+                    }
+                }
+                r
+            })
+            .collect()
     }
 
     /// Distinct mass scales above M_Z introduced by the added fields.
@@ -237,6 +411,71 @@ mod tests {
         assert_eq!(a.added[0].su3, Su3::Triplet);
         assert!((a.added[0].y - 1.0 / 6.0).abs() < 1e-12);
         assert_eq!(a.mass_scales(), vec![2000.0]);
+    }
+
+    #[test]
+    fn test_heavy_fields() {
+        let a = Amendment::from_toml(
+            r#"
+            name = "su5"
+            [[heavy]]
+            name = "XY"
+            kind = "vector_superfield"
+            su3 = "3"
+            su2 = 2
+            y = "-5/6"
+            ratio = 1.0
+            [[heavy]]
+            name = "H_C"
+            kind = "chiral"
+            su3 = "3"
+            y = "-1/3"
+            copies = 2
+            ratio = [0.1, 10]
+            "#,
+        )
+        .unwrap();
+        // X, Y vector superfield reproduces the SU(5) values (-10, -6, -4).
+        let b = a.heavy[0].field.beta_contribution();
+        assert!((b[0] + 10.0).abs() < 1e-12 && (b[1] + 6.0).abs() < 1e-12 && (b[2] + 4.0).abs() < 1e-12);
+        assert_eq!(a.ratio_corners().len(), 2);
+        assert!((a.central_ratios()[1] - 1.0).abs() < 1e-12);
+        // Ratio 1 everywhere gives no shift.
+        assert_eq!(a.threshold_shift(&[1.0, 1.0]), [0.0; 3]);
+    }
+
+    #[test]
+    fn test_grouped_heavy_fields_move_together() {
+        let a = Amendment::from_toml(
+            r#"
+            name = "g"
+            [[heavy]]
+            name = "s8"
+            kind = "chiral"
+            su3 = "8"
+            ratio = [0.1, 10]
+            group = "sigma"
+            [[heavy]]
+            name = "s3"
+            kind = "chiral"
+            su2 = 3
+            ratio = [0.1, 10]
+            group = "sigma"
+            "#,
+        )
+        .unwrap();
+        let corners = a.ratio_corners();
+        assert_eq!(corners.len(), 2);
+        assert!(corners.iter().all(|r| r[0] == r[1]));
+        assert!(Amendment::from_toml(
+            "name = \"g\"\n[[heavy]]\nname = \"a\"\nkind = \"chiral\"\nratio = 1.0\ngroup = \"x\"\n[[heavy]]\nname = \"b\"\nkind = \"chiral\"\nratio = 2.0\ngroup = \"x\""
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_heavy_kind_rejected_in_light_fields() {
+        assert!(Amendment::from_toml("name = \"x\"\n[[field]]\nname = \"v\"\nkind = \"vector\"").is_err());
     }
 
     #[test]

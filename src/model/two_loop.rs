@@ -256,9 +256,11 @@ impl TwoLoop {
     }
 
     /// First point where couplings i and j meet, by linear interpolation.
-    pub fn crossing(points: &[Point], i: usize, j: usize) -> Option<Point> {
+    /// `shift` is added to each 1/alpha before comparing (GUT threshold matching).
+    pub fn crossing(points: &[Point], i: usize, j: usize, shift: [f64; 3]) -> Option<Point> {
+        let d = |p: &Point| (p.inv[i] + shift[i]) - (p.inv[j] + shift[j]);
         points.windows(2).find_map(|w| {
-            let (d0, d1) = (w[0].inv[i] - w[0].inv[j], w[1].inv[i] - w[1].inv[j]);
+            let (d0, d1) = (d(&w[0]), d(&w[1]));
             if d0 == 0.0 {
                 return Some(w[0]);
             }
@@ -284,13 +286,14 @@ impl TwoLoop {
         inputs: (usize, usize),
         k: usize,
         guess: f64,
+        shift: [f64; 3],
     ) -> Option<(f64, Point)> {
         let (i, j) = inputs;
         let mismatch = |x: f64| {
             let mut inv = inv_measured;
             inv[k] = x;
-            let p = Self::crossing(&self.trajectory(inv), i, j)?;
-            Some((p.inv[k] - p.inv[i], p))
+            let p = Self::crossing(&self.trajectory(inv), i, j, shift)?;
+            Some(((p.inv[k] + shift[k]) - (p.inv[i] + shift[i]), p))
         };
 
         // Expand a bracket around the guess until the mismatch changes sign.
@@ -419,7 +422,7 @@ mod tests {
     fn test_solution_unifies() {
         let fields = standard_model();
         let two = TwoLoop::new(&fields, TopYukawa::Auto);
-        let (x, p) = two.solve(inverse_couplings_mz(), (0, 1), 2, 14.0).unwrap();
+        let (x, p) = two.solve(inverse_couplings_mz(), (0, 1), 2, 14.0, [0.0; 3]).unwrap();
         assert!((p.inv[2] - p.inv[0]).abs() < 1e-6);
         assert!(x > 10.0 && x < 20.0, "SM two-loop 1/alpha_s = {}", x);
     }

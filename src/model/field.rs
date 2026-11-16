@@ -15,6 +15,13 @@ pub enum Kind {
     ComplexScalar,
     /// A real scalar (only sensible in real representations with Y = 0).
     RealScalar,
+    /// Heavy only: a chiral superfield (Weyl fermion plus complex scalar).
+    Chiral,
+    /// Heavy only: a massive gauge boson in R plus its conjugate, with the
+    /// eaten Goldstone bosons (e.g. the X, Y bosons of SU(5)).
+    Vector,
+    /// Heavy only: a massive vector superfield in R plus its conjugate.
+    VectorSuperfield,
 }
 
 impl Kind {
@@ -25,7 +32,17 @@ impl Kind {
             Kind::Dirac => 4.0 / 3.0,
             Kind::ComplexScalar => 1.0 / 3.0,
             Kind::RealScalar => 1.0 / 6.0,
+            Kind::Chiral => 1.0,
+            // -11/3 for the vectors in R + Rbar, +1/3 for the eaten complex scalar in R.
+            Kind::Vector => -7.0,
+            // -3 per vector superfield in R + Rbar, +1 per eaten chiral superfield.
+            Kind::VectorSuperfield => -4.0,
         }
+    }
+
+    /// Kinds that only make sense as heavy fields at the unification scale.
+    pub fn is_heavy_only(self) -> bool {
+        matches!(self, Kind::Chiral | Kind::Vector | Kind::VectorSuperfield)
     }
 
     /// Weight in the two-loop coefficient: 1/2 per Weyl fermion, 1 per complex scalar.
@@ -35,6 +52,8 @@ impl Kind {
             Kind::Dirac => 1.0,
             Kind::ComplexScalar => 1.0,
             Kind::RealScalar => 0.5,
+            // Heavy-only kinds never enter the running.
+            Kind::Chiral | Kind::Vector | Kind::VectorSuperfield => 0.0,
         }
     }
 
@@ -227,7 +246,8 @@ impl Field {
                 (self.su3, self.su2, self.y, self.copies),
                 (self.su3.conjugate(), self.su2, -self.y, self.copies),
             ],
-            Kind::ComplexScalar | Kind::RealScalar => vec![],
+            Kind::Chiral => vec![(self.su3, self.su2, self.y, self.copies)],
+            Kind::ComplexScalar | Kind::RealScalar | Kind::Vector | Kind::VectorSuperfield => vec![],
         }
     }
 }

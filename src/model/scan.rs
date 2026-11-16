@@ -3,7 +3,7 @@
 //! All added masses are scaled together so the lightest equals the scan value,
 //! which keeps any hierarchy in the model (e.g. split SUSY) intact.
 
-use super::predict::{evaluate, Prediction};
+use super::predict::{evaluate, Prediction, ThresholdBand};
 use super::proton::ProtonDecay;
 use super::spec::Amendment;
 
@@ -12,6 +12,7 @@ pub struct ScanPoint {
     /// Mass of the lightest added field (GeV).
     pub mass: f64,
     pub prediction: Option<Prediction>,
+    pub thresholds: Option<ThresholdBand>,
     pub proton: Option<ProtonDecay>,
 }
 
@@ -48,6 +49,7 @@ pub fn scan(amendment: &Amendment, loops: u8, masses: &[f64]) -> Vec<ScanPoint> 
             ScanPoint {
                 mass,
                 prediction: report.prediction,
+                thresholds: report.thresholds,
                 proton: report.proton,
             }
         })
@@ -110,6 +112,30 @@ pub fn allowed_ranges(points: &[ScanPoint], n_sigma: f64) -> Vec<(f64, f64)> {
     }
     if let (Some(s), Some(&(m, _))) = (start, pulls.last()) {
         ranges.push((s, m));
+    }
+    ranges
+}
+
+/// Grid masses (lowest to highest of each run) where the GUT-threshold band
+/// contains the measured value.
+pub fn band_ranges(points: &[ScanPoint]) -> Vec<(f64, f64)> {
+    let mut ranges = Vec::new();
+    let mut start: Option<f64> = None;
+    let mut last_inside = 0.0;
+    for p in points {
+        let inside = match (&p.prediction, &p.thresholds) {
+            (Some(pr), Some(b)) => b.contains(pr.alpha_measured()),
+            _ => false,
+        };
+        if inside {
+            start.get_or_insert(p.mass);
+            last_inside = p.mass;
+        } else if let Some(s) = start.take() {
+            ranges.push((s, last_inside));
+        }
+    }
+    if let Some(s) = start {
+        ranges.push((s, last_inside));
     }
     ranges
 }

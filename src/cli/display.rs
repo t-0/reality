@@ -356,6 +356,30 @@ pub fn print_amendment(path: &std::path::Path, loops: u8) {
         println!("{table}");
     }
 
+    if !amendment.heavy.is_empty() {
+        let mut table = Table::new();
+        table.set_header(vec!["Heavy field (at M_X)", "Kind", "SU(3)", "SU(2)", "Y", "Copies", "M / M_X", "b_i"]);
+        for h in &amendment.heavy {
+            let f = &h.field;
+            let ratio = if h.is_varied() {
+                format!("{} - {}", h.ratio.0, h.ratio.1)
+            } else {
+                format!("{}", h.ratio.0)
+            };
+            table.add_row(vec![
+                Cell::new(&f.name),
+                Cell::new(format!("{:?}", f.kind)),
+                Cell::new(f.su3.label()),
+                Cell::new(f.su2),
+                Cell::new(format!("{:+.4}", f.y)),
+                Cell::new(f.copies),
+                Cell::new(ratio),
+                Cell::new(fmt_b(f.beta_contribution())),
+            ]);
+        }
+        println!("{table}");
+    }
+
     println!("\nOne-loop beta coefficients (b1, b2, b3) by energy range:");
     let fields = amendment.all_fields();
     for s in &report.segments {
@@ -420,6 +444,16 @@ pub fn print_amendment(path: &std::path::Path, loops: u8) {
                 100.0 * p.theory_rel,
                 p.pull_experimental
             );
+            if let Some(b) = &report.thresholds {
+                println!(
+                    "  GUT thresholds ({} corners): {}(M_Z) = {:.4} - {:.4}, M_X = {:.2e} - {:.2e} GeV",
+                    b.corners, COUPLING_NAMES[k], b.alpha_min, b.alpha_max, b.m_gut_min, b.m_gut_max
+                );
+                println!(
+                    "  Measured value is {} the threshold band.",
+                    if b.contains(p.alpha_measured()) { "inside" } else { "outside" }
+                );
+            }
         }
         None => println!(
             "  {} and {} never meet below 1e19 GeV (or only beyond a Landau pole): no prediction.",
@@ -468,6 +502,13 @@ pub fn print_amendment(path: &std::path::Path, loops: u8) {
             )
         }
     );
+    let ratios = amendment.varied_ratio_count();
+    if !amendment.heavy.is_empty() {
+        println!(
+            "  GUT-scale mass ratios: {} varied over a range (reported as a band, not fitted)",
+            ratios
+        );
+    }
     println!("  Parameters fitted to the prediction: 0");
     let mut predicted = Vec::new();
     if report.prediction.is_some() {
@@ -481,8 +522,10 @@ pub fn print_amendment(path: &std::path::Path, loops: u8) {
         predicted.len(),
         if predicted.is_empty() { String::new() } else { format!(" ({})", predicted.join(", ")) }
     );
-    if loops >= 2 {
-        println!("\nNote: sharp thresholds; superpartner and GUT-scale threshold corrections are not included.");
+    if loops >= 2 && amendment.heavy.is_empty() {
+        println!("\nNote: sharp thresholds; no GUT-scale fields declared, so GUT threshold corrections are not included.");
+    } else if loops >= 2 {
+        println!("\nNote: sharp superpartner thresholds; GUT thresholds matched at one loop at M_X.");
     } else {
         println!("\nNote: one-loop running. Two-loop and threshold corrections shift alpha_s by a few percent.");
     }
@@ -510,20 +553,28 @@ pub fn print_scan(path: &std::path::Path, from: f64, to: f64, n: usize, loops: u
     let points = scan::scan(&amendment, loops, &scan::log_grid(from, to, n));
 
     if format == "csv" {
-        println!("mass_gev,{0}_predicted,{0}_measured,pull,m_gut_gev,inverse_alpha_gut,proton_lifetime_years", COUPLING_NAMES[k]);
+        println!("mass_gev,{0}_predicted,{0}_measured,pull,m_gut_gev,inverse_alpha_gut,proton_lifetime_years,{0}_band_min,{0}_band_max", COUPLING_NAMES[k]);
         for p in &points {
             match (&p.prediction, &p.proton) {
-                (Some(pr), Some(pd)) => println!(
-                    "{:.6e},{:.6},{:.6},{:.4},{:.6e},{:.4},{:.6e}",
-                    p.mass,
-                    pr.alpha_predicted(),
-                    pr.alpha_measured(),
-                    pr.pull,
-                    pr.m_gut,
-                    pr.inverse_alpha_gut,
-                    pd.lifetime_years
-                ),
-                _ => println!("{:.6e},,,,,,", p.mass),
+                (Some(pr), Some(pd)) => {
+                    let (lo, hi) = p
+                        .thresholds
+                        .map(|b| (format!("{:.6}", b.alpha_min), format!("{:.6}", b.alpha_max)))
+                        .unwrap_or_default();
+                    println!(
+                        "{:.6e},{:.6},{:.6},{:.4},{:.6e},{:.4},{:.6e},{},{}",
+                        p.mass,
+                        pr.alpha_predicted(),
+                        pr.alpha_measured(),
+                        pr.pull,
+                        pr.m_gut,
+                        pr.inverse_alpha_gut,
+                        pd.lifetime_years,
+                        lo,
+                        hi
+                    )
+                }
+                _ => println!("{:.6e},,,,,,,,", p.mass),
             }
         }
         return;
@@ -538,6 +589,7 @@ pub fn print_scan(path: &std::path::Path, from: f64, to: f64, n: usize, loops: u
         "Pull".to_string(),
         "M_GUT (GeV)".to_string(),
         "Proton lifetime (yr)".to_string(),
+        "GUT threshold band".to_string(),
     ]);
     for p in &points {
         match (&p.prediction, &p.proton) {
@@ -547,10 +599,16 @@ pub fn print_scan(path: &std::path::Path, from: f64, to: f64, n: usize, loops: u
                 Cell::new(format!("{:+.2}", pr.pull)),
                 Cell::new(format!("{:.2e}", pr.m_gut)),
                 Cell::new(format!("{:.1e}", pd.lifetime_years)),
+                Cell::new(
+                    p.thresholds
+                        .map(|b| format!("{:.4} - {:.4}", b.alpha_min, b.alpha_max))
+                        .unwrap_or_default(),
+                ),
             ]),
             _ => table.add_row(vec![
                 Cell::new(format!("{:.2e}", p.mass)),
                 Cell::new("no unification"),
+                Cell::new(""),
                 Cell::new(""),
                 Cell::new(""),
                 Cell::new(""),
@@ -582,5 +640,20 @@ pub fn print_scan(path: &std::path::Path, from: f64, to: f64, n: usize, loops: u
                 .join(", ")
         };
         println!("Within {} sigma: {}", n_sigma, text);
+    }
+    if points.iter().any(|p| p.thresholds.is_some()) {
+        let ranges = scan::band_ranges(&points);
+        println!(
+            "Measured value inside the GUT threshold band: {}",
+            if ranges.is_empty() {
+                "nowhere in this range".to_string()
+            } else {
+                ranges
+                    .iter()
+                    .map(|(a, b)| format!("{:.2e} - {:.2e} GeV (grid points)", a, b))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            }
+        );
     }
 }
