@@ -1,0 +1,77 @@
+# SU(5) completion of the search's best two-field model (models/found/
+# quark_doublet_octet_30tev.toml): a light vectorlike quark doublet Q and a
+# light colour octet, both at ~30 TeV, inside non-supersymmetric SU(5).
+#
+# - The octet (8,1,0) is the colour-octet part of the adjoint Higgs 24_H.
+#   Its partner, the weak triplet Sigma_3 (1,3,0), stays near M_GUT.
+# - Q (3,2,1/6) comes from a vectorlike 10 + 10bar of fermions. Their masses are
+#   M + lambda <24_H>, with <24_H> ~ diag(2,2,2,-3,-3) v, so
+#     m_Q = M - lambda v,  m_U = M + 4 lambda v,  m_E = M - 6 lambda v.
+#   A light Q needs M ~ lambda v, which forces |m_U| = |m_E| = 5 lambda v:
+#   the partners U (3,1,2/3) and E (1,1,1) are degenerate (one group below).
+# - The colour-triplet Higgs (3,1,-1/3) of the 5_H and the X, Y bosons sit at M_GUT.
+# Heavy masses range over 0.1 - 10 x M_X; the report shows the resulting band.
+#
+# Findings (reality amend / scan, two loops):
+# - Central: alpha_s = 0.1187 (-0.3 sigma), M_GUT = 1.5e16 GeV, tau(p -> e+ pi0)
+#   ~ 2e36 yr. Light mass within 1 sigma: 18 - 76 TeV (best fit 37 TeV).
+# - On a 5^3 grid of heavy masses, every point that fits alpha_s has M_X in
+#   1.1 - 1.9e16 GeV and tau = 0.6 - 5e36 yr: beyond Hyper-K (~1e35 yr).
+# - Moving the light states trades one test for the other: at ~3 TeV (collider
+#   reach) the proton lives ~6e37 yr; at ~200 - 300 TeV it falls to ~1e35 yr
+#   (Hyper-K reach). Lighter states imply a longer-lived proton.
+# - Cost: a light Q needs M ~ lambda v tuned to ~1e-11, and the light octet a
+#   similar tuning in the 24_H potential (like doublet-triplet splitting).
+name = "SU(5) completion: light Q and colour octet at 30 TeV"
+description = "Non-SUSY SU(5) with a vectorlike 10 + 10bar and the 24_H octet; Q and the octet light, partners at M_GUT."
+inputs = ["alpha_1", "alpha_2"]
+
+[[field]]
+name = "Q from vectorlike 10 + 10bar"
+kind = "dirac"
+su3 = "3"
+su2 = 2
+y = "1/6"
+mass = 3e4
+
+[[field]]
+name = "colour octet Sigma_8 from 24_H"
+kind = "real_scalar"
+su3 = "8"
+mass = 3e4
+
+[[heavy]]
+name = "X, Y gauge bosons"
+kind = "vector"
+su3 = "3"
+su2 = 2
+y = "-5/6"
+ratio = 1.0
+
+[[heavy]]
+name = "weak triplet Sigma_3 from 24_H"
+kind = "real_scalar"
+su2 = 3
+ratio = [0.1, 10]
+
+[[heavy]]
+name = "colour-triplet Higgs from 5_H"
+kind = "complex_scalar"
+su3 = "3"
+y = "-1/3"
+ratio = [0.1, 10]
+
+[[heavy]]
+name = "U partner from 10 + 10bar"
+kind = "dirac"
+su3 = "3"
+y = "2/3"
+ratio = [0.1, 10]
+group = "10-partners"
+
+[[heavy]]
+name = "E partner from 10 + 10bar"
+kind = "dirac"
+y = "1"
+ratio = [0.1, 10]
+group = "10-partners"
