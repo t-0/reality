@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>A Quark Doublet and an Octet</title>
+    <style>
+        body {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 32px 16px 64px;
+            font: 16px/1.6 Georgia, "Times New Roman", serif;
+            color: #1a1a1a;
+            background: #fff;
+        }
+        h1 {
+            font-size: 2rem;
+            line-height: 1.2;
+            margin: 0.3em 0;
+        }
+        h2 {
+            font-size: 1.3rem;
+            margin: 2em 0 0.5em;
+        }
+        h3 {
+            font-size: 1.05rem;
+            margin: 1.5em 0 0.3em;
+        }
+        .muted,
+        .caption,
+        footer {
+            color: #555;
+        }
+        .summary {
+            border: 1px solid #ccc;
+            padding: 4px 16px;
+            background: #fafafa;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.9rem;
+            margin: 1em 0;
+        }
+        th,
+        td {
+            text-align: left;
+            padding: 6px 8px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: top;
+        }
+        td.num {
+            text-align: right;
+            white-space: nowrap;
+        }
+        .scroll {
+            overflow-x: auto;
+        }
+        pre,
+        .eq {
+            font: 0.85rem/1.5 ui-monospace, Menlo, monospace;
+            background: #f5f5f5;
+            padding: 10px 14px;
+            overflow-x: auto;
+        }
+        figure {
+            margin: 1.5em 0;
+        }
+        figcaption {
+            font-size: 0.9rem;
+            color: #555;
+        }
+        svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        svg text {
+            font: 11px ui-monospace, Menlo, monospace;
+            fill: #555;
+        }
+        svg .note {
+            font: 12px Georgia, serif;
+        }
+        svg .g {
+            stroke: #e5e5e5;
+        }
+        svg .axis {
+            stroke: #888;
+        }
+        svg .ref {
+            stroke: #888;
+            stroke-width: 1.5;
+            stroke-dasharray: 5 4;
+        }
+        svg .line {
+            fill: none;
+            stroke: #2a78d6;
+            stroke-width: 2;
+        }
+        svg .pband {
+            fill: rgba(42, 120, 214, 0.16);
+        }
+        svg .band {
+            fill: rgba(0, 0, 0, 0.07);
+        }
+        footer {
+            border-top: 1px solid #ccc;
+            margin-top: 3em;
+            font-size: 0.88rem;
+        }
+    </style>
+</head>
+<body>
+    <p class="muted">Technical note · non-supersymmetric unification</p>
+    <h1>A Quark Doublet and an Octet</h1>
+    <p class="muted">github/t-0 <i>with</i> Claude<br><a href="https://github.com/t-0/reality">github.com/t-0/reality</a></p>
+    <p class="muted">A brute-force search over additions to the Standard Model, a robustness ranking, and one candidate
+        that we could not find in the literature. Written for someone who works on grand unification, to ask whether it
+        is
+        known and whether it survives.</p>
+    <div class="summary">
+        <p><strong>Summary.</strong> We built a tool that takes a proposed field content, checks it for consistency, and
+            predicts α<sub>s</sub>(M<sub>Z</sub>) from α<sub>1</sub>, α<sub>2</sub> and unification at two loops, with
+            nothing
+            fitted, together with the proton lifetime. It reproduces published results, including the Bajc–Senjanović
+            adjoint
+            SU(5) analysis. A search over 17 million candidate extensions found that no single multiplet unifies,
+            rediscovered
+            the known Q + D and split-SUSY-like solutions, and ranked as most robust among two-field models a
+            <strong>vectorlike quark doublet Q (3,2,1/6) plus a real colour octet (8,1,0), both near 30 TeV</strong>.
+            Embedded
+            in SU(5) (octet from 24<sub>H</sub>, Q from a vectorlike 10 + 10̄), it unifies with α<sub>s</sub> = 0.1187
+            and
+            predicts a correlation: lighter new states imply a longer-lived proton.
+        </p>
+    </div>
+    <h2>1. Method</h2>
+    <p>A model is a file listing new fields: representation, kind (Weyl, Dirac, complex or real scalar) and mass.
+        Optional
+        heavy fields near the unification scale have masses given as ratios to M<sub>X</sub>. For each model:</p>
+    <ul>
+        <li><strong>Consistency gates</strong> without data: all gauge anomalies, the Witten SU(2) anomaly, integer
+            charges
+            for colour singlets, perturbativity to 10<sup>19</sup> GeV.</li>
+        <li><strong>Running</strong> at two loops with the top Yukawa. One- and two-loop coefficients are derived from
+            the
+            field content (Machacek–Vaughn); supersymmetric energy ranges are detected from the content and use the
+            superfield
+            form. Light thresholds are sharp; heavy fields enter by one-loop matching at M<sub>X</sub>, δ<sub>i</sub> =
+            b<sub>i</sub><sup>h</sup>/(2π) · ln(M<sub>h</sub>/M<sub>X</sub>).</li>
+        <li><strong>Held-out prediction</strong>: α<sub>1</sub> and α<sub>2</sub> at M<sub>Z</sub> are inputs; requiring
+            α<sub>3</sub> to meet them at M<sub>X</sub> gives α<sub>3</sub>(M<sub>Z</sub>), found by shooting. The pull
+            uses
+            the experimental error and a 2% two-loop theory error.</li>
+        <li><strong>Proton decay</strong>: p → e<sup>+</sup>π<sup>0</sup> from X/Y exchange, τ ≈
+            M<sub>X</sub><sup>4</sup>/(α<sub>GUT</sub><sup>2</sup> m<sub>p</sub><sup>5</sup>); for supersymmetric models
+            also
+            p → K<sup>+</sup>ν̄ from Hisano–Kuwahara–Nagata eq. (19). Both treated as uncertain by a factor of 10.</li>
+    </ul>
+    <h2>2. Validation</h2>
+    <p>Before trusting the search we checked the engine against independent published results. All of these are
+        automated
+        tests.</p>
+    <div class="scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Check</th>
+                    <th>Published</th>
+                    <th>Engine</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>SM and MSSM two-loop b<sub>ij</sub> from field content</td>
+                    <td>standard matrices</td>
+                    <td>all 18 entries</td>
+                    <td>exact</td>
+                </tr>
+                <tr>
+                    <td>Hisano–Murayama–Yanagida relation, SUSY SU(5) thresholds</td>
+                    <td>analytic, one loop</td>
+                    <td>three heavy-mass sets</td>
+                    <td>exact</td>
+                </tr>
+                <tr>
+                    <td>Bajc–Senjanović eq. (15): M<sub>GUT</sub> with M<sub>(3,2)</sub> =
+                        M<sub>GUT</sub><sup>2</sup>/M<sub>Pl</sub></td>
+                    <td>≈ 10<sup>15.5</sup> GeV</td>
+                    <td>10<sup>15.43</sup> GeV</td>
+                    <td>exact to 10<sup>−6</sup></td>
+                </tr>
+                <tr>
+                    <td>Bajc–Senjanović eq. (16): octet mass for 1/α<sub>3</sub> = 8.55</td>
+                    <td>10<sup>5</sup>–10<sup>8</sup> GeV</td>
+                    <td>in range, 1/α<sub>3</sub> reproduced</td>
+                    <td>exact</td>
+                </tr>
+                <tr>
+                    <td>Bajc–Senjanović two-loop weak-triplet mass</td>
+                    <td>“about 500 GeV”</td>
+                    <td>497 GeV</td>
+                    <td>agrees</td>
+                </tr>
+                <tr>
+                    <td>Minimal SUSY SU(5), TeV sparticles, p → K<sup>+</sup>ν̄</td>
+                    <td>excluded</td>
+                    <td>τ ≈ 10<sup>29</sup> yr</td>
+                    <td>agrees</td>
+                </tr>
+                <tr>
+                    <td>α<sub>s</sub> from unification: SM, MSSM at M<sub>Z</sub></td>
+                    <td>≈ 0.07, ≈ 0.13</td>
+                    <td>0.074, 0.129</td>
+                    <td>agrees</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <p>Re-run with today’s data, the Bajc–Senjanović benchmark is excluded: with the type-III triplet above the LHC
+        limit
+        (≈ 880 GeV), τ(p → e<sup>+</sup>π<sup>0</sup>) ≈ 1.5×10<sup>33</sup> yr, and only with the most forgiving
+        conventions does it reach 1.2×10<sup>34</sup> yr, still below Super-K.</p>
+    <h2>3. Search</h2>
+    <p>Every combination of up to four multiplets from a menu of 20 (vectorlike fermions, Weyl fermions in real
+        representations, scalars; anomaly-free by construction), at masses from 1 TeV to 10<sup>12</sup> GeV. A model is
+        accepted if |pull| ≤ 1 on α<sub>s</sub>, the proton outlives Super-K, M<sub>GUT</sub> ≤ 10<sup>18</sup> GeV, and
+        it
+        stays perturbative.</p>
+    <div class="scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Run</th>
+                    <th>Candidates</th>
+                    <th>Accepted</th>
+                    <th>Main observation</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>≤ 4 fields, decade masses</td>
+                    <td class="num">17,178,875</td>
+                    <td class="num">15,037</td>
+                    <td>No single multiplet works. Q (3,2,1/6) is in 69% of accepted models.</td>
+                </tr>
+                <tr>
+                    <td>≤ 3 fields, half-decade masses</td>
+                    <td class="num">9,290,430</td>
+                    <td class="num">7,404</td>
+                    <td>Q in 81%. Two-field models with one mass scale appear.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <p>Known solutions come back without being asked for: vectorlike Q + D (the standard non-SUSY setup), the
+        colour-sextet diquark (6,1,1/3) of Babu–Mohapatra type, and wino-, gluino- and higgsino-like fermions with a
+        second
+        Higgs doublet at 1 TeV, which is split-SUSY content.</p>
+    <h3>Robustness</h3>
+    <p>A best fit at one grid point says little about tuning. For each accepted model we draw each distinct mass scale
+        log-uniformly within ±1 decade and generic SU(5) GUT fields within 0.1–10 × M<sub>X</sub>, and count the
+        fraction of
+        draws that still pass, treating any draw below 1 TeV as excluded. Among two-field models the most robust is Q +
+        real
+        octet at ~30 TeV, 29 ± 2% (400 draws). For comparison: the MSSM with SUSY SU(5) thresholds scores 18%, and split
+        SUSY with 10<sup>9</sup> GeV scalars 2%.</p>
+    <h2>4. The candidate in SU(5)</h2>
+    <p>The octet is the colour-octet part of the adjoint 24<sub>H</sub>; its partner Σ<sub>3</sub> (1,3,0) stays heavy.
+        Q
+        comes from a vectorlike 10 + 10̄ of fermions with masses from a bare term and a coupling to ⟨24<sub>H</sub>⟩ ∝
+        diag(2,2,2,−3,−3) v:</p>
+    <div class="eq">m<sub>Q</sub> = M − λv, m<sub>U</sub> = M + 4λv, m<sub>E</sub> = M − 6λv ⇒ m<sub>Q</sub> ≈ 0 forces
+        |m<sub>U</sub>| = |m<sub>E</sub>| = 5λv</div>
+    <p>So the partners U (3,1,2/3) and E (1,1,1) are degenerate. With them, Σ<sub>3</sub> and the colour-triplet Higgs
+        varied over 0.1–10 × M<sub>X</sub>:</p>
+    <div class="scroll">
+        <table>
+            <tbody>
+                <tr>
+                    <td>α<sub>s</sub>(M<sub>Z</sub>), central heavy masses</td>
+                    <td class="num">0.1187 (−0.3σ)</td>
+                </tr>
+                <tr>
+                    <td>Band over heavy masses</td>
+                    <td class="num">0.105 – 0.136</td>
+                </tr>
+                <tr>
+                    <td>M<sub>X</sub>, central</td>
+                    <td class="num">1.5×10<sup>16</sup> GeV</td>
+                </tr>
+                <tr>
+                    <td>Light mass within 1σ (central heavy masses)</td>
+                    <td class="num">18 – 76 TeV</td>
+                </tr>
+                <tr>
+                    <td>τ(p → e<sup>+</sup>π<sup>0</sup>) wherever α<sub>s</sub> fits (5<sup>3</sup> heavy-mass grid)
+                    </td>
+                    <td class="num">0.6 – 5×10<sup>36</sup> yr</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <figure>
+        <svg viewBox="0 0 720 300" role="img"
+            aria-label="Predicted alpha_s against the mass of Q and the octet. It falls from 0.132 at 1 TeV through the measured 0.118 near 37 TeV to 0.101 at 10 PeV; the band from heavy GUT masses contains the measured value from 1 TeV to about 2 PeV.">
+            <path
+                d="M62.0,25.9L78.1,30.6L94.2,35.2L110.3,39.8L126.4,44.3L142.5,48.7L158.6,53.1L174.7,57.4L190.8,61.7L206.9,65.9L223.0,70.1L239.1,74.2L255.2,78.2L271.3,82.2L287.4,86.2L303.5,90.0L319.6,93.9L335.7,97.6L351.8,101.4L367.9,105.1L384.0,108.7L400.1,112.3L416.2,115.8L432.3,119.2L448.4,122.7L464.5,126.1L480.6,129.4L496.7,132.7L512.8,135.9L528.9,139.1L545.0,142.3L561.1,145.4L577.2,148.5L593.3,151.5L609.4,154.5L625.5,157.4L641.6,160.3L657.7,163.2L673.8,166.0L689.9,168.8L706.0,171.6L706.0,251.6L689.9,249.9L673.8,248.1L657.7,246.3L641.6,244.5L625.5,242.6L609.4,240.7L593.3,238.9L577.2,237.0L561.1,235.1L545.0,233.1L528.9,231.1L512.8,229.2L496.7,227.1L480.6,225.1L464.5,223.1L448.4,221.0L432.3,218.9L416.2,216.8L400.1,214.6L384.0,212.5L367.9,210.3L351.8,208.1L335.7,205.8L319.6,203.6L303.5,201.3L287.4,199.0L271.3,196.6L255.2,194.3L239.1,191.9L223.0,189.5L206.9,187.0L190.8,184.6L174.7,182.1L158.6,179.5L142.5,177.0L126.4,174.4L110.3,171.8L94.2,169.2L78.1,166.6L62.0,163.9Z"
+                class="pband" />
+            <rect x="62" y="145.9" width="644" height="17.9" class="band" />
+            <line x1="62" x2="706" y1="154.9" y2="154.9" class="axis" />
+            <line x1="62.0" x2="62.0" y1="12" y2="262" class="g" /><text x="62.0" y="277" text-anchor="middle">1
+                TeV</text>
+            <line x1="223.0" x2="223.0" y1="12" y2="262" class="g" /><text x="223.0" y="277" text-anchor="middle">10
+                TeV</text>
+            <line x1="384.0" x2="384.0" y1="12" y2="262" class="g" /><text x="384.0" y="277" text-anchor="middle">100
+                TeV</text>
+            <line x1="545.0" x2="545.0" y1="12" y2="262" class="g" /><text x="545.0" y="277" text-anchor="middle">1
+                PeV</text>
+            <line x1="706.0" x2="706.0" y1="12" y2="262" class="g" /><text x="706.0" y="277" text-anchor="middle">10
+                PeV</text>
+            <line x1="62" x2="706" y1="254.9" y2="254.9" class="g" /><text x="55" y="258.4"
+                text-anchor="end">0.09</text>
+            <line x1="62" x2="706" y1="219.1" y2="219.1" class="g" /><text x="55" y="222.6"
+                text-anchor="end">0.10</text>
+            <line x1="62" x2="706" y1="183.4" y2="183.4" class="g" /><text x="55" y="186.9"
+                text-anchor="end">0.11</text>
+            <line x1="62" x2="706" y1="147.7" y2="147.7" class="g" /><text x="55" y="151.2"
+                text-anchor="end">0.12</text>
+            <line x1="62" x2="706" y1="112.0" y2="112.0" class="g" /><text x="55" y="115.5"
+                text-anchor="end">0.13</text>
+            <line x1="62" x2="706" y1="76.3" y2="76.3" class="g" /><text x="55" y="79.8" text-anchor="end">0.14</text>
+            <line x1="62" x2="706" y1="40.6" y2="40.6" class="g" /><text x="55" y="44.1" text-anchor="end">0.15</text>
+            <line x1="62" x2="706" y1="262" y2="262" class="axis" />
+            <text x="384.0" y="297" text-anchor="middle">Mass of Q and the octet</text>
+            <path
+                d="M62.0,104.9L78.1,108.4L94.2,111.8L110.3,115.2L126.4,118.6L142.5,121.9L158.6,125.2L174.7,128.4L190.8,131.6L206.9,134.8L223.0,137.9L239.1,141.0L255.2,144.0L271.3,147.1L287.4,150.0L303.5,153.0L319.6,155.9L335.7,158.8L351.8,161.6L367.9,164.4L384.0,167.2L400.1,169.9L416.2,172.6L432.3,175.3L448.4,177.9L464.5,180.5L480.6,183.1L496.7,185.6L512.8,188.2L528.9,190.6L545.0,193.1L561.1,195.5L577.2,197.9L593.3,200.3L609.4,202.6L625.5,204.9L641.6,207.2L657.7,209.5L673.8,211.7L689.9,213.9L706.0,216.1"
+                class="line" />
+            <text x="700" y="140.9" text-anchor="end" class="note">measured 0.1180</text>
+        </svg>
+        <figcaption>Predicted α<sub>s</sub>(M<sub>Z</sub>) for central heavy masses (line), the band as heavy masses
+            vary
+            over 0.1–10 × M<sub>X</sub> (blue), and the measured value ± 1σ (grey).</figcaption>
+    </figure>
+    <figure>
+        <svg viewBox="0 0 720 300" role="img"
+            aria-label="Predicted proton lifetime against the mass of Q and the octet, on a log scale, falling from 3e38 years at 1 TeV to 4e32 years at 10 PeV; it crosses the Hyper-K reach near 200 TeV.">
+            <rect x="62" y="177.0" width="644" height="85.0" class="band" />
+            <line x1="62" x2="706" y1="177.0" y2="177.0" class="axis" />
+            <line x1="62" x2="706" y1="154.9" y2="154.9" class="ref" />
+            <line x1="62.0" x2="62.0" y1="12" y2="262" class="g" /><text x="62.0" y="277" text-anchor="middle">1
+                TeV</text>
+            <line x1="223.0" x2="223.0" y1="12" y2="262" class="g" /><text x="223.0" y="277" text-anchor="middle">10
+                TeV</text>
+            <line x1="384.0" x2="384.0" y1="12" y2="262" class="g" /><text x="384.0" y="277" text-anchor="middle">100
+                TeV</text>
+            <line x1="545.0" x2="545.0" y1="12" y2="262" class="g" /><text x="545.0" y="277" text-anchor="middle">1
+                PeV</text>
+            <line x1="706.0" x2="706.0" y1="12" y2="262" class="g" /><text x="706.0" y="277" text-anchor="middle">10
+                PeV</text>
+            <line x1="62" x2="706" y1="262.0" y2="262.0" class="g" /><text x="55" y="265.5"
+                text-anchor="end">10³²</text>
+            <line x1="62" x2="706" y1="190.6" y2="190.6" class="g" /><text x="55" y="194.1"
+                text-anchor="end">10³⁴</text>
+            <line x1="62" x2="706" y1="119.1" y2="119.1" class="g" /><text x="55" y="122.6"
+                text-anchor="end">10³⁶</text>
+            <line x1="62" x2="706" y1="47.7" y2="47.7" class="g" /><text x="55" y="51.2" text-anchor="end">10³⁸</text>
+            <line x1="62" x2="706" y1="262" y2="262" class="axis" />
+            <text x="384.0" y="297" text-anchor="middle">Mass of Q and the octet</text>
+            <path
+                d="M62.0,28.7L78.1,34.2L94.2,39.6L110.3,45.0L126.4,50.5L142.5,55.9L158.6,61.3L174.7,66.6L190.8,72.1L206.9,77.5L223.0,82.8L239.1,88.2L255.2,93.5L271.3,98.8L287.4,104.2L303.5,109.5L319.6,114.8L335.7,120.2L351.8,125.5L367.9,130.8L384.0,136.2L400.1,141.5L416.2,146.7L432.3,152.0L448.4,157.3L464.5,162.6L480.6,167.9L496.7,173.2L512.8,178.5L528.9,183.8L545.0,189.0L561.1,194.3L577.2,199.5L593.3,204.8L609.4,210.0L625.5,215.3L641.6,220.5L657.7,225.8L673.8,231.0L689.9,236.3L706.0,241.5"
+                class="line" />
+            <text x="68" y="192.0" class="note">Super-K: &gt; 2.4×10³⁴ yr</text>
+            <text x="68" y="148.9" class="note">Hyper-K reach ~10³⁵ yr</text>
+        </svg>
+        <figcaption>Predicted τ(p → e<sup>+</sup>π<sup>0</sup>) for central heavy masses (line). Grey: excluded by
+            Super-K.
+            Dashed: Hyper-K reach.</figcaption>
+    </figure>
+    <p class="caption">Lighter Q and octet raise M<sub>X</sub> and so lengthen the proton’s life. At a few TeV, where a
+        collider could find them, α<sub>s</sub> needs the heavy masses at the low edge of the band and τ ≈
+        10<sup>37–38</sup> yr. Near 200–300 TeV the proton comes into Hyper-K’s reach but the states are beyond any
+        collider. The central fit, around 37 TeV, is reachable by neither.</p>
+    <p><strong>Cost.</strong> A light Q needs M ≈ λv to about 1 part in 10<sup>11</sup>, and the light octet a
+        comparable
+        tuning in the 24<sub>H</sub> potential, the same kind of tuning as doublet–triplet splitting.</p>
+    <h2>5. Literature status</h2>
+    <p>The ingredients are known: vectorlike Q appears in the standard Q + D setups, a real colour octet (8,1,0) helps
+        unification in SO(10) and adjoint constructions, and close relatives with a vectorlike doublet, colour-octet
+        scalar
+        and real triplet exist. We did not find Q + real octet as a pair. The systematic scan we checked restricts which
+        representations it allows and would not have tested it; Giveon–Hall–Sarid (1991) and the extended-SU(5)
+        literature
+        were not reviewed in full. Absence from our search is not evidence of novelty.</p>
+    <h2>6. Questions for an expert</h2>
+    <ol>
+        <li>Is a light vectorlike Q together with the 24<sub>H</sub> octet already discussed, perhaps under another name
+            or
+            inside a 45<sub>H</sub> or split-multiplet study?</li>
+        <li>Is there an obstruction we have missed: the octet’s decays (a Q̄ T<sup>a</sup> Q Σ<sup>a</sup> coupling
+            allows
+            Σ<sub>8</sub> → gg through a Q loop), Q mixing with Standard Model quarks, cosmological relics, or vacuum
+            stability of the 24<sub>H</sub> potential with a light octet?</li>
+        <li>Does the correlation between the light mass and the proton lifetime survive realistic GUT-scale spectra, and
+            two-loop matching at the light thresholds?</li>
+        <li>Is the tuning worse than in other non-SUSY SU(5) completions that are taken seriously?</li>
+    </ol>
+    <h2>7. Limitations and reproduction</h2>
+    <ul>
+        <li>Sharp light thresholds; heavy fields matched at one loop. Top Yukawa only.</li>
+        <li>Proton lifetimes are order-of-magnitude estimates (factor 10 either way); dimension-6 decays through the
+            colour-triplet Higgs are not included.</li>
+        <li>The search finds the best models within its 20-multiplet menu, not all models.</li>
+    </ul>
+    <pre>cargo build --release
+cargo test                                         # includes tests/bajc_senjanovic.rs
+target/release/reality amend models/su5_quark_doublet_octet.toml
+target/release/reality scan  models/su5_quark_doublet_octet.toml --from 1e3 --to 1e7
+target/release/reality robust models/found/quark_doublet_octet_30tev.toml --samples 400
+target/release/reality search --max-fields 3 --robust 64</pre>
+    <p>Code is in the linked repository (Rust, 167 tests).</p>
+    <footer>
+        <p>The code, the search and this note were produced with the help of Claude (Anthropic), mainly Claude Opus 5.5,
+            with earlier work by Claude Opus 4.6. All results can be reproduced from the repository.</p>
+        <p>References: Bajc &amp; Senjanović, hep-ph/0612029; Hisano, Kuwahara &amp; Nagata, arXiv:1304.3651; Super-K,
+            arXiv:1408.1195; ATLAS type-III seesaw, arXiv:2202.02039; Babu &amp; Mohapatra, arXiv:1206.5701;
+            Schwichtenberg,
+            arXiv:1808.10329; arXiv:2006.01406 (Q + D); arXiv:1011.4577 (colour octets in SO(10)); arXiv:2303.11070
+            (vectorlike doublet, octet and triplet).</p>
+    </footer>
+</body>
+</html>
