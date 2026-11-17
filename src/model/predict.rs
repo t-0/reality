@@ -1,5 +1,6 @@
 use super::gates::{self, Gate, Verdict};
-use super::proton::ProtonDecay;
+use super::field::{Kind, Su3};
+use super::proton::{Dimension5, ProtonDecay};
 use super::running::{Running, Segment};
 use super::spec::Amendment;
 use super::two_loop::TwoLoop;
@@ -88,6 +89,8 @@ pub struct ThresholdBand {
     pub m_gut_max: f64,
     /// Number of ratio combinations evaluated.
     pub corners: usize,
+    /// Range of the dimension-5 lifetime (years) over the corners, for SUSY models.
+    pub dimension5_years: Option<(f64, f64)>,
 }
 
 impl ThresholdBand {
@@ -107,6 +110,8 @@ pub struct Report {
     /// Range of the prediction from GUT-scale thresholds, if any are varied.
     pub thresholds: Option<ThresholdBand>,
     pub proton: Option<ProtonDecay>,
+    /// p -> K+ nu-bar through colour-triplet higgsinos, for supersymmetric models.
+    pub dimension5: Option<Dimension5>,
 }
 
 impl Report {
@@ -164,6 +169,37 @@ fn predict_with(
     }
 }
 
+/// tan(beta) used for dimension-5 proton decay when a model does not set it.
+pub const DEFAULT_TAN_BETA: f64 = 10.0;
+
+/// Inputs to the dimension-5 estimate, if the model is supersymmetric at high
+/// energy: (sfermion mass M_S, higgsino mass mu_H, index of the colour-triplet
+/// Higgs among the heavy fields if declared).
+fn dimension5_inputs(amendment: &Amendment, fields: &[super::field::Field]) -> Option<(f64, f64, Option<usize>)> {
+    if !super::two_loop::is_supersymmetric(&fields.iter().collect::<Vec<_>>()) {
+        return None;
+    }
+    let squarks = amendment
+        .added
+        .iter()
+        .filter(|f| f.kind == Kind::ComplexScalar && f.su3 != Su3::Singlet)
+        .map(|f| f.mass)
+        .reduce(f64::max);
+    let m_s = squarks.or_else(|| amendment.added.iter().map(|f| f.mass).reduce(f64::max))?;
+    let mu_h = amendment
+        .added
+        .iter()
+        .filter(|f| f.kind == Kind::Dirac && f.su3 == Su3::Singlet && f.su2 == 2 && (f.y.abs() - 0.5).abs() < 1e-9)
+        .map(|f| f.mass)
+        .reduce(f64::min)
+        .unwrap_or(m_s);
+    let h_c = amendment.heavy.iter().position(|h| {
+        let f = &h.field;
+        f.kind == Kind::Chiral && matches!(f.su3, Su3::Triplet | Su3::AntiTriplet) && f.su2 == 1 && (f.y.abs() - 1.0 / 3.0).abs() < 1e-9
+    });
+    Some((m_s, mu_h, h_c))
+}
+
 /// Evaluate an amendment with one- or two-loop running.
 pub fn evaluate(amendment: &Amendment, loops: u8) -> Report {
     let fields = amendment.all_fields();
@@ -174,27 +210,45 @@ pub fn evaluate(amendment: &Amendment, loops: u8) -> Report {
     let prediction = predict_with(amendment, &running, two.as_ref(), &amendment.central_ratios())
         .filter(|p| below_pole(p));
 
-    let corners: Vec<Prediction> = amendment
-        .ratio_corners()
+    let d5_inputs = dimension5_inputs(amendment, &fields);
+    let tan_beta = amendment.tan_beta.unwrap_or(DEFAULT_TAN_BETA);
+    let d5 = |p: &Prediction, ratios: &[f64]| {
+        d5_inputs.map(|(m_s, mu_h, h_c)| {
+            let r = h_c.map_or(1.0, |k| ratios[k]);
+            Dimension5::estimate(r * p.m_gut, m_s, mu_h, tan_beta)
+        })
+    };
+
+    let corner_ratios = amendment.ratio_corners();
+    let corners: Vec<(Prediction, Option<f64>)> = corner_ratios
         .iter()
-        .filter_map(|r| predict_with(amendment, &running, two.as_ref(), r))
-        .filter(|p| below_pole(p))
+        .filter_map(|r| {
+            let p = predict_with(amendment, &running, two.as_ref(), r)?;
+            let tau = d5(&p, r).map(|d| d.lifetime_years);
+            Some((p, tau))
+        })
+        .filter(|(p, _)| below_pole(p))
         .collect();
     let thresholds = (!corners.is_empty() && prediction.is_some()).then(|| {
         let fold = |f: fn(&Prediction) -> f64, init: f64, op: fn(f64, f64) -> f64| {
-            corners.iter().map(f).fold(init, op)
+            corners.iter().map(|(p, _)| f(p)).fold(init, op)
         };
+        let taus: Vec<f64> = corners.iter().filter_map(|c| c.1).collect();
         ThresholdBand {
             alpha_min: fold(|p| p.alpha_predicted(), f64::MAX, f64::min),
             alpha_max: fold(|p| p.alpha_predicted(), f64::MIN, f64::max),
             m_gut_min: fold(|p| p.m_gut, f64::MAX, f64::min),
             m_gut_max: fold(|p| p.m_gut, f64::MIN, f64::max),
             corners: corners.len(),
+            dimension5_years: (!taus.is_empty()).then(|| {
+                (taus.iter().cloned().fold(f64::MAX, f64::min), taus.iter().cloned().fold(f64::MIN, f64::max))
+            }),
         }
     });
     let proton = prediction
         .as_ref()
         .map(|p| ProtonDecay::estimate(p.m_gut, p.inverse_alpha_gut));
+    let dimension5 = prediction.as_ref().and_then(|p| d5(p, &amendment.central_ratios()));
     Report {
         amendment: amendment.clone(),
         gates: gates::check(&fields),
@@ -203,6 +257,7 @@ pub fn evaluate(amendment: &Amendment, loops: u8) -> Report {
         prediction,
         thresholds,
         proton,
+        dimension5,
     }
 }
 

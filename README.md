@@ -43,7 +43,7 @@ Evaluates a model amendment and prints a report:
 
 1. **Consistency gates**, which need no data: gauge anomaly cancellation (U(1)³, gravity × U(1), SU(3)² × U(1), SU(2)² × U(1), SU(3)³), the Witten SU(2) anomaly, integer charges for colour singlets, and perturbativity up to 10¹⁹ GeV.
 2. **Held-out prediction.** Two couplings are inputs. The engine requires all three to meet, and predicts the third at M_Z. Running is two-loop with the top Yukawa by default (`--loops 1` for the analytic one-loop result). The pull includes a theory uncertainty: 2% at two loops, 5% at one.
-3. **Proton lifetime** for p → e⁺π⁰ via the X/Y gauge bosons, compared with the Super-K limit and the Hyper-K reach. The report gives a kill condition where the model is testable.
+3. **Proton lifetime** for p → e⁺π⁰ via the X/Y gauge bosons, compared with the Super-K limit and the Hyper-K reach. The report gives a kill condition where the model is testable. Supersymmetric models also get **p → K⁺ν̄** from colour-triplet higgsino exchange (dimension 5), estimated with Hisano, Kuwahara and Nagata's formula (arXiv:1304.3651, eq. 19). It uses the colour-triplet Higgs mass, the sfermion and higgsino masses, and tan β.
 4. **Ledger**: the parameters set by hand, the parameters fitted (always zero), and the predictions made.
 
 ```sh
@@ -103,6 +103,7 @@ description = "Optional one-line description."
 base = "sm"                       # "sm" (default) or "none"
 inputs = ["alpha_1", "alpha_2"]   # two of alpha_1, alpha_2, alpha_3; the third is predicted
 top_yukawa = "auto"               # "auto" (default) or "none"
+tan_beta = 10                     # optional; dimension-5 proton decay in SUSY models (default 10)
 
 [[field]]                         # a particle added to the running
 name = "vectorlike Q"
@@ -139,6 +140,7 @@ Notes:
 | `models/mssm_su5.toml` | MSSM plus the GUT-scale fields of minimal SUSY SU(5) |
 | `models/vectorlike_quark.toml` | One vectorlike quark doublet: consistent, but predicts α_s badly |
 | `models/lone_higgsino.toml` | A deliberately inconsistent model |
+| `models/bajc_senjanovic.toml` | Non-SUSY adjoint SU(5) (hep-ph/0612029); checked by `tests/bajc_senjanovic.rs` |
 | `models/found/*.toml` | The best results from `reality search` |
 
 ## Validation
@@ -149,10 +151,12 @@ The test suite checks the engine against published results:
 - the Hisano–Murayama–Yanagida relation for SU(5) threshold corrections (exact at one loop)
 - the analytic near-threshold cross section for e⁺e⁻ → W⁺W⁻
 - the known α_s predictions of the SM (about 0.07) and the MSSM (about 0.13 at two loops with superpartners at M_Z)
+- Bajc and Senjanović's adjoint SU(5): their M_GUT and octet-mass equations exactly, and their two-loop triplet mass (497 GeV against their "about 500 GeV")
+- the exclusion of minimal SUSY SU(5) with TeV sparticles by p → K⁺ν̄
 
 ## Limitations
 
 - **Sharp thresholds.** Each new particle switches on at its mass, with no matching corrections at superpartner or vectorlike-fermion thresholds.
-- **Uncertain proton lifetime.** It's a dimension-6 estimate, uncertain by about a factor of 10. Dimension-5 decays in SUSY models (p → K⁺ν̄) aren't included.
+- **Uncertain proton lifetimes.** Both estimates are uncertain by about a factor of 10. The dimension-5 one uses higgsino dressing only, keeps the renormalization factor at its reference value, and ignores sfermion flavour structure.
 - **Top Yukawa only.** Two-loop running includes only the top Yukawa, with the SM value at M_Z (tan β is ignored).
 - **The search menu limits results.** It finds the best models among its 20 multiplets, not every possible model.

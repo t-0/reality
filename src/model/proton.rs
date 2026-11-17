@@ -56,23 +56,80 @@ impl ProtonDecay {
         let width = alpha_gut * alpha_gut * M_PROTON.powi(5) / m_gut.powi(4);
         let lifetime_years = HBAR_GEV_S / width / SECONDS_PER_YEAR;
 
-        let low = lifetime_years / UNCERTAINTY_FACTOR;
-        let high = lifetime_years * UNCERTAINTY_FACTOR;
-        let status = if high < SUPER_K_LIMIT_YEARS {
-            Status::Excluded
-        } else if low < SUPER_K_LIMIT_YEARS {
-            Status::Borderline
-        } else if low < HYPER_K_REACH_YEARS {
-            Status::TestableAtHyperK
-        } else {
-            Status::OutOfReach
-        };
-
+        let status = classify(lifetime_years, SUPER_K_LIMIT_YEARS, HYPER_K_REACH_YEARS);
         Self {
             m_x: m_gut,
             alpha_gut,
             lifetime_years,
             status,
+        }
+    }
+
+    pub fn range_years(&self) -> (f64, f64) {
+        (
+            self.lifetime_years / UNCERTAINTY_FACTOR,
+            self.lifetime_years * UNCERTAINTY_FACTOR,
+        )
+    }
+}
+
+/// Place a lifetime, uncertain by UNCERTAINTY_FACTOR either way, against a
+/// current limit and a future reach.
+pub fn classify(lifetime_years: f64, limit: f64, reach: f64) -> Status {
+    let low = lifetime_years / UNCERTAINTY_FACTOR;
+    let high = lifetime_years * UNCERTAINTY_FACTOR;
+    if high < limit {
+        Status::Excluded
+    } else if low < limit {
+        Status::Borderline
+    } else if low < reach {
+        Status::TestableAtHyperK
+    } else {
+        Status::OutOfReach
+    }
+}
+
+/// Super-Kamiokande lower limit on tau(p -> K+ nu-bar), 90% CL, in years
+/// (260 kt yr, arXiv:1408.1195).
+pub const SUPER_K_LIMIT_K_NU_YEARS: f64 = 5.9e33;
+
+/// Approximate Hyper-Kamiokande reach for p -> K+ nu-bar, in years.
+pub const HYPER_K_REACH_K_NU_YEARS: f64 = 3.0e34;
+
+/// Dimension-5 proton decay p -> K+ nu-bar in supersymmetric GUTs, through
+/// colour-triplet higgsino exchange dressed by a higgsino loop.
+///
+/// Hisano, Kuwahara & Nagata, arXiv:1304.3651, eq. (19), for M_S = mu_H:
+///   tau ~ 4e35 yr sin^4(2 beta) (0.1 / A_R)^2 (M_S / 100 TeV)^2 (M_HC / 1e16 GeV)^2
+/// The dressing amplitude scales as mu_H / M_S^2, so for a lighter higgsino
+/// M_S^2 becomes M_S^4 / mu_H^2. A_R is kept at its reference value 0.1.
+/// Uncertain by about a factor of 10 (A_R, hadronic matrix elements, flavour).
+#[derive(Debug, Clone, Copy)]
+pub struct Dimension5 {
+    /// Colour-triplet Higgs mass (GeV).
+    pub m_hc: f64,
+    /// Sfermion mass scale (GeV).
+    pub m_s: f64,
+    /// Higgsino mass (GeV), at most m_s.
+    pub mu_h: f64,
+    pub tan_beta: f64,
+    pub lifetime_years: f64,
+    pub status: Status,
+}
+
+impl Dimension5 {
+    pub fn estimate(m_hc: f64, m_s: f64, mu_h: f64, tan_beta: f64) -> Self {
+        let mu_h = mu_h.min(m_s);
+        let sin_2beta = 2.0 * tan_beta / (1.0 + tan_beta * tan_beta);
+        let effective = m_s * m_s / mu_h;
+        let lifetime_years = 4e35 * sin_2beta.powi(4) * (effective / 1e5).powi(2) * (m_hc / 1e16).powi(2);
+        Self {
+            m_hc,
+            m_s,
+            mu_h,
+            tan_beta,
+            lifetime_years,
+            status: classify(lifetime_years, SUPER_K_LIMIT_K_NU_YEARS, HYPER_K_REACH_K_NU_YEARS),
         }
     }
 
@@ -100,6 +157,28 @@ mod tests {
         let a = ProtonDecay::estimate(1e15, 25.0);
         let b = ProtonDecay::estimate(1e16, 25.0);
         assert!((b.lifetime_years / a.lifetime_years / 1e4 - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_dimension5_reference_point() {
+        // tan(beta) = 1 gives sin(2 beta) = 1: the formula's 4e35 years at
+        // M_S = mu_H = 100 TeV and M_HC = 1e16 GeV.
+        let d = Dimension5::estimate(1e16, 1e5, 1e5, 1.0);
+        assert!((d.lifetime_years / 4e35 - 1.0).abs() < 1e-12);
+        // Quadratic in M_HC and in M_S (for mu_H = M_S).
+        let d2 = Dimension5::estimate(1e17, 1e6, 1e6, 1.0);
+        assert!((d2.lifetime_years / 4e39 - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_dimension5_kills_tev_susy() {
+        // Minimal SUSY SU(5) with TeV sparticles and tan(beta) = 10 is far
+        // below the K+ nu-bar limit, the classic result (Murayama & Pierce 2002).
+        let d = Dimension5::estimate(1e16, 1e3, 1e3, 10.0);
+        assert_eq!(d.status, Status::Excluded);
+        // A lighter higgsino suppresses the higgsino dressing.
+        let split = Dimension5::estimate(1e16, 1e9, 1e3, 10.0);
+        assert!(split.lifetime_years > d.lifetime_years);
     }
 
     #[test]

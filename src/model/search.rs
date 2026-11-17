@@ -160,6 +160,7 @@ pub fn amendment_for(menu: &[MenuItem], picks: &[(usize, f64)]) -> Amendment {
         inputs: (0, 1),
         predicted: 2,
         top_yukawa: TopYukawa::Auto,
+        tan_beta: None,
         added,
         heavy: Vec::new(),
     }

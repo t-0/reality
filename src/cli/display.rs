@@ -487,6 +487,35 @@ pub fn print_amendment(path: &std::path::Path, loops: u8) {
         println!("  {}", verdict);
     }
 
+    if let Some(d) = &report.dimension5 {
+        let (lo, hi) = d.range_years();
+        println!("\nProton decay (p -> K+ nu-bar via colour-triplet higgsinos, supersymmetric models):");
+        println!(
+            "  M_HC = {:.2e} GeV, M_S = {:.2e} GeV, mu_H = {:.2e} GeV, tan(beta) = {}",
+            d.m_hc, d.m_s, d.mu_h, d.tan_beta
+        );
+        println!("  tau = {:.1e} years (range {:.0e} - {:.0e})", d.lifetime_years, lo, hi);
+        if let Some((a, b)) = report.thresholds.and_then(|t| t.dimension5_years) {
+            println!("  Over the GUT-threshold ranges: {:.1e} - {:.1e} years", a, b);
+        }
+        println!(
+            "  Super-K limit: > {:.1e} years    Hyper-K reach: ~{:.0e} years",
+            proton::SUPER_K_LIMIT_K_NU_YEARS,
+            proton::HYPER_K_REACH_K_NU_YEARS
+        );
+        let verdict = match d.status {
+            proton::Status::Excluded => "EXCLUDED: p -> K+ nu-bar would already have been seen.".to_string(),
+            proton::Status::Borderline => "BORDERLINE: the estimate straddles the Super-K limit.".to_string(),
+            proton::Status::TestableAtHyperK => format!(
+                "TESTABLE. Kill condition: Hyper-K sees no p -> K+ nu-bar down to ~{:.0e} years.",
+                proton::HYPER_K_REACH_K_NU_YEARS
+            ),
+            proton::Status::OutOfReach => "ALLOWED, beyond Hyper-K's reach in this channel.".to_string(),
+        };
+        println!("  {}", verdict);
+        println!("  Estimate: Hisano, Kuwahara & Nagata, arXiv:1304.3651 eq. (19), higgsino dressing.");
+    }
+
     let scales = amendment.mass_scales();
     println!("\nLedger:");
     println!(
@@ -502,6 +531,13 @@ pub fn print_amendment(path: &std::path::Path, loops: u8) {
             )
         }
     );
+    if report.dimension5.is_some() {
+        println!(
+            "  tan(beta): {}{} (used only for dimension-5 proton decay)",
+            amendment.tan_beta.unwrap_or(model::predict::DEFAULT_TAN_BETA),
+            if amendment.tan_beta.is_none() { ", default" } else { "" }
+        );
+    }
     let ratios = amendment.varied_ratio_count();
     if !amendment.heavy.is_empty() {
         println!(
@@ -516,6 +552,9 @@ pub fn print_amendment(path: &std::path::Path, loops: u8) {
     }
     if report.proton.is_some() {
         predicted.push("proton lifetime".to_string());
+    }
+    if report.dimension5.is_some() {
+        predicted.push("p -> K+ nu-bar lifetime".to_string());
     }
     println!(
         "  Predictions: {}{}",

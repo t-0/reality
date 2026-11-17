@@ -168,7 +168,10 @@ pub fn robustness(amendment: &Amendment, cfg: &RobustConfig) -> RobustReport {
                 (Some(p), Some(pd)) if p.m_gut <= MAX_M_GUT => (
                     above_floor,
                     p.pull.abs() <= cfg.accept_sigma,
-                    pd.lifetime_years >= proton::SUPER_K_LIMIT_YEARS,
+                    pd.lifetime_years >= proton::SUPER_K_LIMIT_YEARS
+                        && report
+                            .dimension5
+                            .map_or(true, |d| d.lifetime_years >= proton::SUPER_K_LIMIT_K_NU_YEARS),
                     true,
                     Some(p.alpha_predicted()),
                 ),

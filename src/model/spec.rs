@@ -136,6 +136,9 @@ struct SpecFile {
     inputs: Vec<String>,
     #[serde(default)]
     top_yukawa: TopYukawa,
+    /// Only used for dimension-5 proton decay in supersymmetric models.
+    #[serde(default)]
+    tan_beta: Option<f64>,
     #[serde(default)]
     field: Vec<FieldSpec>,
     #[serde(default)]
@@ -155,6 +158,8 @@ pub struct Amendment {
     pub predicted: usize,
     /// Top Yukawa scheme for two-loop running.
     pub top_yukawa: TopYukawa,
+    /// tan(beta) for dimension-5 proton decay; None means the default.
+    pub tan_beta: Option<f64>,
     /// Fields added on top of the base.
     pub added: Vec<Field>,
     /// Fields near the unification scale, matched at M_X instead of run.
@@ -275,6 +280,9 @@ impl Amendment {
                 }
             }
         }
+        if spec.tan_beta.map_or(false, |t| !(t > 0.0)) {
+            return Err(RealityError::InvalidModel("tan_beta must be positive".to_string()));
+        }
         if Self::varied_units_of(&heavy).len() > MAX_VARIED_HEAVY {
             return Err(RealityError::InvalidModel(format!(
                 "at most {} independent heavy-field ratios may be varied",
@@ -289,6 +297,7 @@ impl Amendment {
             inputs: (i.min(j), i.max(j)),
             predicted,
             top_yukawa: spec.top_yukawa,
+            tan_beta: spec.tan_beta,
             added,
             heavy,
         })
