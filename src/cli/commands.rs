@@ -141,5 +141,35 @@ pub enum Commands {
         /// Write the shown candidates as model files into this directory
         #[arg(long)]
         write: Option<std::path::PathBuf>,
+
+        /// Rank accepted models by robustness, using this many random draws each (0 = off)
+        #[arg(long, default_value = "0")]
+        robust: usize,
+    },
+
+    /// Measure how much of the nearby model space still works for a model
+    Robust {
+        /// Path to a model file
+        file: std::path::PathBuf,
+
+        /// Number of random draws
+        #[arg(long, default_value = "200")]
+        samples: usize,
+
+        /// Each added mass moves log-uniformly within this many decades either way
+        #[arg(long, default_value = "1")]
+        spread: f64,
+
+        /// Draws with any added mass below this (GeV) fail as excluded by colliders
+        #[arg(long, default_value = "1000")]
+        min_mass: f64,
+
+        /// Generic SU(5) GUT-field ratios range over [1/R, R] if the model has no [[heavy]] fields (1 = off)
+        #[arg(long, default_value = "10")]
+        thresholds: f64,
+
+        /// Random seed
+        #[arg(long, default_value = "1")]
+        seed: u64,
     },
 }

@@ -665,7 +665,9 @@ pub fn print_search(
     accept: f64,
     top: usize,
     write: Option<&std::path::Path>,
+    robust_samples: usize,
 ) {
+    use crate::model::robust::{robustness, RobustConfig};
     use crate::model::search::{self, SearchConfig};
 
     let mut cfg = SearchConfig {
@@ -702,7 +704,28 @@ pub fn print_search(
         cfg.masses[0],
         cfg.masses[cfg.masses.len() - 1]
     );
-    let result = search::search(&cfg);
+    let mut result = search::search(&cfg);
+    // Robustness for every accepted model, then sort each group by it.
+    let robust: Vec<f64> = if robust_samples > 0 {
+        let rcfg = RobustConfig { samples: robust_samples, loops, accept_sigma: accept, ..RobustConfig::default() };
+        eprintln!("Measuring robustness of {} models ({} draws each)...", result.hits.len(), robust_samples);
+        let mut scored: Vec<(f64, search::Hit)> = result
+            .hits
+            .drain(..)
+            .map(|h| (robustness(&h.amendment, &rcfg).pass, h))
+            .collect();
+        scored.sort_by(|a, b| {
+            a.1.fields()
+                .cmp(&b.1.fields())
+                .then(b.0.partial_cmp(&a.0).unwrap())
+                .then(a.1.mass_scales.cmp(&b.1.mass_scales))
+        });
+        let (r, h): (Vec<f64>, Vec<search::Hit>) = scored.into_iter().unzip();
+        result.hits = h;
+        r
+    } else {
+        Vec::new()
+    };
     println!(
         "Evaluated {} candidates at one loop; {} passed the screen; {} accepted at {} loop{}.",
         result.evaluated,
@@ -725,7 +748,8 @@ pub fn print_search(
 
     let mut shown = Vec::new();
     for n in 1..=max_fields {
-        let group: Vec<_> = result.hits.iter().filter(|h| h.fields() == n).collect();
+        let group: Vec<(usize, &search::Hit)> =
+            result.hits.iter().enumerate().filter(|(_, h)| h.fields() == n).collect();
         println!(
             "{} new multiplet{}: {} accepted",
             n,
@@ -737,7 +761,7 @@ pub fn print_search(
             continue;
         }
         let mut table = Table::new();
-        table.set_header(vec![
+        let mut header = vec![
             "Added (mass in GeV)",
             "alpha_s",
             "Pull",
@@ -746,8 +770,12 @@ pub fn print_search(
             "Scales",
             "States",
             "Test",
-        ]);
-        for h in group.iter().take(top) {
+        ];
+        if !robust.is_empty() {
+            header.push("Robust");
+        }
+        table.set_header(header);
+        for &(idx, h) in group.iter().take(top) {
             let fields = h
                 .amendment
                 .added
@@ -769,7 +797,7 @@ pub fn print_search(
             if h.lightest_coloured.map_or(false, |m| m <= 1e4) {
                 tests.push("collider");
             }
-            table.add_row(vec![
+            let mut row = vec![
                 Cell::new(fields),
                 Cell::new(format!("{:.4}", h.prediction.alpha_predicted())),
                 Cell::new(format!("{:+.2}", h.prediction.pull)),
@@ -778,8 +806,12 @@ pub fn print_search(
                 Cell::new(h.mass_scales),
                 Cell::new(h.new_states),
                 Cell::new(if tests.is_empty() { "-".to_string() } else { tests.join(", ") }),
-            ]);
-            shown.push(*h);
+            ];
+            if let Some(r) = robust.get(idx) {
+                row.push(Cell::new(format!("{:.0}%", 100.0 * r)));
+            }
+            table.add_row(row);
+            shown.push(h);
         }
         println!("{table}\n");
     }
@@ -807,7 +839,17 @@ pub fn print_search(
         println!("How often each multiplet appears among the {} accepted models:", result.hits.len());
         println!("{table}\n");
     }
-    println!("Sorted by: fewest multiplets, then fewest mass scales, then fewest new states, then |pull|.");
+    if robust.is_empty() {
+        println!("Sorted by: fewest multiplets, then fewest mass scales, then fewest new states, then |pull|.");
+    } else {
+        println!("Sorted by: fewest multiplets, then robustness (share of {} random draws that still pass:", robust_samples);
+        println!("masses within 1 decade, any below 1 TeV fails; SU(5) GUT fields within 0.1-10 x M_X).");
+        println!(
+            "Statistical error on robustness with {} draws: up to +-{:.0}%.",
+            robust_samples,
+            100.0 * 0.5 / (robust_samples as f64).sqrt()
+        );
+    }
     println!("Test: Hyper-K = proton decay within ~10x of Hyper-K reach; collider = coloured state at or below 10 TeV.");
 
     if let Some(dir) = write {
@@ -826,5 +868,63 @@ pub fn print_search(
             }
         }
         println!("\nWrote {} model files to {}.", shown.len(), dir.display());
+    }
+}
+
+pub fn print_robust(path: &std::path::Path, samples: usize, spread: f64, min_mass: f64, thresholds: f64, seed: u64) {
+    use crate::model::robust::{robustness, RobustConfig};
+
+    let amendment = match Amendment::from_file(path) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    };
+    if samples == 0 || spread < 0.0 || min_mass <= 0.0 || thresholds < 1.0 {
+        eprintln!("Need --samples >= 1, --spread >= 0, --min-mass > 0 and --thresholds >= 1.");
+        std::process::exit(1);
+    }
+    let cfg = RobustConfig {
+        samples,
+        spread_decades: spread,
+        min_mass,
+        threshold_range: thresholds,
+        seed,
+        ..RobustConfig::default()
+    };
+    let r = robustness(&amendment, &cfg);
+    println!("{}", amendment.name);
+    println!(
+        "\nDraws: {}. Each added mass moves log-uniformly within {} decade{}; draws below {:.0e} GeV fail.",
+        r.samples,
+        spread,
+        if spread == 1.0 { "" } else { "s" },
+        min_mass
+    );
+    if r.generic_thresholds {
+        println!(
+            "GUT fields: generic {}SU(5) (colour-triplet Higgs, adjoint octet and triplet) at {}-{} x M_X.",
+            if r.supersymmetric { "supersymmetric " } else { "non-SUSY " },
+            1.0 / thresholds,
+            thresholds
+        );
+    } else if !amendment.heavy.is_empty() {
+        println!("GUT fields: the model's own [[heavy]] fields, drawn within their ranges.");
+    } else {
+        println!("GUT fields: none.");
+    }
+    println!(
+        "\nRobustness: {:.0}% +- {:.0}% of draws pass everything.",
+        100.0 * r.pass,
+        100.0 * r.pass_error
+    );
+    println!("Failures (a draw can fail more than one):");
+    println!("  new particle below {:.0e} GeV: {:.0}%", min_mass, 100.0 * r.fail_collider);
+    println!("  alpha_s outside 1 sigma:     {:.0}%", 100.0 * r.fail_alpha);
+    println!("  proton below Super-K limit:  {:.0}%", 100.0 * r.fail_proton);
+    println!("  no unification below 1e18:   {:.0}%", 100.0 * r.fail_unify);
+    if let Some([lo, mid, hi]) = r.alpha_quantiles {
+        println!("  alpha_s over draws: {:.4} (median), 90% between {:.4} and {:.4}", mid, lo, hi);
     }
 }

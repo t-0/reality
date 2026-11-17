@@ -5,6 +5,7 @@ pub mod field;
 pub mod gates;
 pub mod predict;
 pub mod proton;
+pub mod robust;
 pub mod running;
 pub mod scan;
 pub mod search;

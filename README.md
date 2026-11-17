@@ -77,7 +77,23 @@ reality search --max-fields 3 --top 6
 reality search --max-fields 3 --masses 1e3,3.16e3,1e4,3.16e4,1e5 --write found/
 ```
 
+`--robust N` ranks the accepted models by robustness instead (see below), with N random draws per model.
+
 The search runs in parallel. On a 10-core machine, 3 fields at 7 masses (477k candidates) takes about 8 s, and 4 fields (17M candidates) about 4 minutes.
+
+### `reality robust <model.toml>`
+
+A best fit at one point says little about how tuned a model is. This command measures the fraction of nearby model space that still works.
+
+- Each distinct mass scale of the added fields moves log-uniformly within `--spread` decades (default 1). Fields that share a mass move together, because they're one parameter.
+- The GUT-scale fields move within 1/`--thresholds` to `--thresholds` × M_X (default 0.1–10). A model's own `[[heavy]]` fields are used if it has any. Otherwise the model gets generic minimal SU(5) content: supersymmetric if the model is supersymmetric at high energy, non-supersymmetric otherwise.
+- A draw passes if no new particle is below `--min-mass` (default 1 TeV, roughly the collider limit), α_s is within 1σ, the proton outlives the Super-K limit, and the couplings unify below 10¹⁸ GeV.
+
+The report gives the pass fraction with its statistical error, the share of draws failing each test, and the spread of predicted α_s.
+
+```sh
+reality robust models/found/quark_doublet_octet_30tev.toml --samples 400
+```
 
 ## Model file format
 

@@ -54,8 +54,19 @@ fn main() {
             accept,
             top,
             write,
+            robust,
         } => {
-            display::print_search(max_fields, masses.as_deref(), loops, accept, top, write.as_deref());
+            display::print_search(max_fields, masses.as_deref(), loops, accept, top, write.as_deref(), robust);
+        }
+        Commands::Robust {
+            file,
+            samples,
+            spread,
+            min_mass,
+            thresholds,
+            seed,
+        } => {
+            display::print_robust(&file, samples, spread, min_mass, thresholds, seed);
         }
     }
 }
