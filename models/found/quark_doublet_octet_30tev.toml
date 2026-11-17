@@ -1,0 +1,21 @@
+# Most economical non-SUSY result: two multiplets, one new mass scale (~30 TeV).
+# Found by `reality search`: alpha_s(M_Z) = 0.1185 at two loops, pull -0.21,
+# M_GUT = 1.48e16 GeV, proton lifetime ~1.9e36 years.
+name = "SM + Dirac (3,2,1/6) @ 3e4 GeV + Real scalar (8,1,0) @ 3e4 GeV"
+inputs = ["alpha_1", "alpha_2"]
+
+[[field]]
+name = "Dirac (3,2,1/6)"
+kind = "dirac"
+su3 = "3"
+su2 = 2
+y = "1/6"
+mass = 3.162e4
+
+[[field]]
+name = "Real scalar (8,1,0)"
+kind = "real_scalar"
+su3 = "8"
+su2 = 1
+y = "0"
+mass = 3.162e4

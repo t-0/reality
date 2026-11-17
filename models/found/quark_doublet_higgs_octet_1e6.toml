@@ -1,0 +1,29 @@
+# One new scale at 1e6 GeV; proton lifetime just above Super-K, inside Hyper-K's reach.
+# Found by `reality search`: alpha_s(M_Z) = 0.1178 at two loops, pull +0.09,
+# M_GUT = 5.48e15 GeV, proton lifetime ~3.6e34 years.
+name = "SM + Dirac (3,2,1/6) @ 1e6 GeV + Scalar (1,2,1/2) @ 1e6 GeV + Real scalar (8,1,0) @ 1e6 GeV"
+inputs = ["alpha_1", "alpha_2"]
+
+[[field]]
+name = "Dirac (3,2,1/6)"
+kind = "dirac"
+su3 = "3"
+su2 = 2
+y = "1/6"
+mass = 1e6
+
+[[field]]
+name = "Scalar (1,2,1/2)"
+kind = "complex_scalar"
+su3 = "1"
+su2 = 2
+y = "1/2"
+mass = 1e6
+
+[[field]]
+name = "Real scalar (8,1,0)"
+kind = "real_scalar"
+su3 = "8"
+su2 = 1
+y = "0"
+mass = 1e6
