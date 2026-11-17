@@ -1,0 +1,48 @@
+# Bajc & Senjanovic, "Seesaw at LHC", JHEP 0708 (2007) 014 [hep-ph/0612029]:
+# non-supersymmetric SU(5) with an adjoint fermion 24_F (type I + III seesaw).
+# Benchmark from the paper: weak triplets near 500 GeV at two loops, colour
+# octets in 1e5 - 1e8 GeV, fermionic leptoquark at M_GUT^2 / M_Pl ~ 6e11 GeV,
+# scalar colour triplet at M_GUT ~ 10^15.4 GeV. tests/bajc_senjanovic.rs checks
+# the engine against the paper's equations (15) and (16).
+name = "Bajc-Senjanovic adjoint SU(5)"
+description = "Non-SUSY SU(5) with a fermionic 24: light weak triplets, heavy octets and leptoquarks."
+inputs = ["alpha_1", "alpha_2"]
+
+[[field]]
+name = "fermion triplet (type III seesaw)"
+kind = "weyl"
+su2 = 3
+mass = 500
+
+[[field]]
+name = "scalar triplet from 24_H"
+kind = "real_scalar"
+su2 = 3
+mass = 500
+
+[[field]]
+name = "fermion octet"
+kind = "weyl"
+su3 = "8"
+mass = 6e7
+
+[[field]]
+name = "scalar octet from 24_H"
+kind = "real_scalar"
+su3 = "8"
+mass = 6e7
+
+[[field]]
+name = "fermionic leptoquark"
+kind = "dirac"
+su3 = "3"
+su2 = 2
+y = "-5/6"
+mass = 6e11
+
+[[field]]
+name = "scalar colour triplet from 5_H"
+kind = "complex_scalar"
+su3 = "3"
+y = "-1/3"
+mass = 2.7e15
