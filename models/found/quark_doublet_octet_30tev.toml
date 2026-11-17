@@ -1,4 +1,9 @@
 # Most economical non-SUSY result: two multiplets, one new mass scale (~30 TeV).
+# Literature (checked 2026-11): not found as a pair. Ingredients are known:
+# vectorlike Q appears in Q + D setups (arXiv:2006.01406), and a real colour
+# octet (8,1,0) helps unification in SO(10) / adjoint models (arXiv:1011.4577).
+# A natural SU(5) origin: the octet of the 24_H plus a light Q split from a
+# vectorlike 10 + 10bar. Robustness 29 +- 2% (best two-field model).
 # Found by `reality search`: alpha_s(M_Z) = 0.1185 at two loops, pull -0.21,
 # M_GUT = 1.48e16 GeV, proton lifetime ~1.9e36 years.
 name = "SM + Dirac (3,2,1/6) @ 3e4 GeV + Real scalar (8,1,0) @ 3e4 GeV"

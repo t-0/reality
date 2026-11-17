@@ -1,4 +1,6 @@
 # One new scale at 1e6 GeV; proton lifetime just above Super-K, inside Hyper-K's reach.
+# Literature: close relatives with a vectorlike quark doublet, colour octet
+# scalar and real triplet in arXiv:2303.11070; this exact set not found.
 # Found by `reality search`: alpha_s(M_Z) = 0.1178 at two loops, pull +0.09,
 # M_GUT = 5.48e15 GeV, proton lifetime ~3.6e34 years.
 name = "SM + Dirac (3,2,1/6) @ 1e6 GeV + Scalar (1,2,1/2) @ 1e6 GeV + Real scalar (8,1,0) @ 1e6 GeV"
