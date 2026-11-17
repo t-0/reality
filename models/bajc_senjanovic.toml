@@ -4,6 +4,13 @@
 # octets in 1e5 - 1e8 GeV, fermionic leptoquark at M_GUT^2 / M_Pl ~ 6e11 GeV,
 # scalar colour triplet at M_GUT ~ 10^15.4 GeV. tests/bajc_senjanovic.rs checks
 # the engine against the paper's equations (15) and (16).
+#
+# Status (checked 2026): LHC searches exclude type-III triplet fermions below
+# ~870-880 GeV (ATLAS arXiv:2202.02039; CMS). With the triplet at that limit
+# and M_Pl = 1.22e19 GeV, M_GUT ~ 2.6e15 GeV and tau(p -> e+ pi0) ~ 1.5e33 yr,
+# excluded by Super-K (> 2.4e34 yr) even allowing a factor 10. With the most
+# forgiving choices (scalar triplet at M_Z, reduced Planck mass 2.4e18 GeV) the
+# lifetime rises to ~1.2e34 yr: borderline, and decisively testable at Hyper-K.
 name = "Bajc-Senjanovic adjoint SU(5)"
 description = "Non-SUSY SU(5) with a fermionic 24: light weak triplets, heavy octets and leptoquarks."
 inputs = ["alpha_1", "alpha_2"]
