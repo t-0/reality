@@ -9,6 +9,8 @@
 
 use std::fmt::Write as _;
 
+use rayon::prelude::*;
+
 use super::field::{Field, Kind, Su3};
 use super::predict::{predict, Prediction};
 use super::proton::{self, ProtonDecay};
@@ -209,33 +211,33 @@ pub fn search(cfg: &SearchConfig) -> SearchResult {
     let inv = inverse_couplings_mz();
     let alpha_measured = 1.0 / inv[2];
 
-    // Stage 1: analytic one-loop screen.
-    let mut evaluated = 0;
-    let mut survivors: Vec<Vec<(usize, f64)>> = Vec::new();
+    // Stage 1: analytic one-loop screen, in parallel over all candidates.
+    let mut candidates: Vec<Vec<(usize, f64)>> = Vec::new();
     for size in 1..=cfg.max_fields {
         multisets(items.len(), size, |idx| {
-            evaluated += 1;
-            let picks: Vec<(usize, f64)> = idx.iter().map(|&k| items[k]).collect();
-            let fields: Vec<Field> = {
-                let mut f = super::sm::standard_model();
-                f.extend(picks.iter().map(|&(i, m)| menu[i].field(1, m)));
-                f
-            };
-            let running = Running::new(&fields);
-            if let Some(p) = predict(&running, (0, 1), 2, [0.0; 3]) {
-                if (p.alpha_predicted() / alpha_measured - 1.0).abs() <= cfg.screen
-                    && p.m_gut <= MAX_M_GUT
-                {
-                    survivors.push(picks);
-                }
-            }
+            candidates.push(idx.iter().map(|&k| items[k]).collect());
         });
     }
+    let evaluated = candidates.len();
+    let survivors: Vec<Vec<(usize, f64)>> = candidates
+        .into_par_iter()
+        .filter(|picks| {
+            let mut fields = super::sm::standard_model();
+            fields.extend(picks.iter().map(|&(i, m)| menu[i].field(1, m)));
+            let running = Running::new(&fields);
+            predict(&running, (0, 1), 2, [0.0; 3]).map_or(false, |p| {
+                (p.alpha_predicted() / alpha_measured - 1.0).abs() <= cfg.screen
+                    && p.m_gut <= MAX_M_GUT
+            })
+        })
+        .collect();
     let screened = survivors.len();
 
-    // Stage 2: full prediction, proton decay and acceptance.
+    // Stage 2: full prediction, proton decay and acceptance, in parallel.
+    // Collecting an indexed parallel iterator keeps the input order, so the
+    // result is identical to a sequential run.
     let mut hits: Vec<Hit> = survivors
-        .into_iter()
+        .into_par_iter()
         .filter_map(|picks| {
             let amendment = amendment_for(&menu, &picks);
             let prediction = full_prediction(&amendment, cfg.loops)?;

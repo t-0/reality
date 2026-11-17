@@ -228,7 +228,7 @@ impl TwoLoop {
     /// Integrate with RK4 from M_Z up to Q_MAX, stopping early if a coupling
     /// becomes non-perturbative.
     pub fn trajectory(&self, inv_mz: [f64; 3]) -> Vec<Point> {
-        const STEP: f64 = 0.02;
+        const STEP: f64 = 0.1;
         let mut inv = inv_mz;
         let mut y = Y_TOP_MZ;
         let mut points = vec![Point { ln_q: M_Z.ln(), inv, y_top: y }];
