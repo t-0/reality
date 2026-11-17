@@ -783,6 +783,30 @@ pub fn print_search(
         }
         println!("{table}\n");
     }
+    if !result.hits.is_empty() {
+        let mut counts = vec![0usize; menu.len()];
+        for h in &result.hits {
+            let mut seen: Vec<usize> = h.picks.iter().map(|p| p.0).collect();
+            seen.dedup();
+            for i in seen {
+                counts[i] += 1;
+            }
+        }
+        let mut order: Vec<usize> = (0..menu.len()).collect();
+        order.sort_by(|&a, &b| counts[b].cmp(&counts[a]).then(a.cmp(&b)));
+        let mut table = Table::new();
+        table.set_header(vec!["Multiplet", "In accepted models", "Share", "Known as"]);
+        for i in order {
+            table.add_row(vec![
+                Cell::new(menu[i].label),
+                Cell::new(counts[i]),
+                Cell::new(format!("{:.0}%", 100.0 * counts[i] as f64 / result.hits.len() as f64)),
+                Cell::new(menu[i].note),
+            ]);
+        }
+        println!("How often each multiplet appears among the {} accepted models:", result.hits.len());
+        println!("{table}\n");
+    }
     println!("Sorted by: fewest multiplets, then fewest mass scales, then fewest new states, then |pull|.");
     println!("Test: Hyper-K = proton decay within ~10x of Hyper-K reach; collider = coloured state at or below 10 TeV.");
 

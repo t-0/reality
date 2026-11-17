@@ -78,26 +78,24 @@ impl Running {
         [inv_mz[0] - d[0], inv_mz[1] - d[1], inv_mz[2] - d[2]]
     }
 
-    /// Scale between M_Z and Q_MAX where couplings i and j meet, by bisection in ln Q.
+    /// Lowest scale between M_Z and Q_MAX where couplings i and j meet.
     /// `shift` is added to each 1/alpha before comparing (GUT threshold matching).
+    /// At one loop the difference is linear in ln Q within each segment, so the
+    /// crossing is solved exactly segment by segment.
     pub fn crossing(&self, inv_mz: [f64; 3], i: usize, j: usize, shift: [f64; 3]) -> Option<f64> {
-        let diff = |ln_q: f64| {
-            let a = self.inverse_at(inv_mz, ln_q.exp());
-            (a[i] + shift[i]) - (a[j] + shift[j])
-        };
-        let (mut lo, mut hi) = (M_Z.ln(), Q_MAX.ln());
-        if diff(lo).signum() == diff(hi).signum() {
-            return None;
-        }
-        for _ in 0..200 {
-            let mid = 0.5 * (lo + hi);
-            if diff(lo).signum() == diff(mid).signum() {
-                lo = mid;
-            } else {
-                hi = mid;
+        let mut d = (inv_mz[i] + shift[i]) - (inv_mz[j] + shift[j]);
+        for s in &self.segments {
+            if d == 0.0 {
+                return Some(s.lo);
             }
+            let slope = -(s.b[i] - s.b[j]) / (2.0 * PI);
+            let d_hi = d + slope * (s.hi / s.lo).ln();
+            if d_hi == 0.0 || d.signum() != d_hi.signum() {
+                return Some(s.lo * (-d / slope).exp());
+            }
+            d = d_hi;
         }
-        Some((0.5 * (lo + hi)).exp())
+        None
     }
 
     /// Lowest scale where any coupling becomes non-perturbative (1/alpha <= 0).

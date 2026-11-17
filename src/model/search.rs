@@ -9,6 +9,8 @@
 
 use std::fmt::Write as _;
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use rayon::prelude::*;
 
 use super::field::{Field, Kind, Su3};
@@ -163,6 +165,26 @@ pub fn amendment_for(menu: &[MenuItem], picks: &[(usize, f64)]) -> Amendment {
     }
 }
 
+/// Every multiset of `size` items from 0..n whose first (smallest) element is
+/// `first`, in non-decreasing order. Splitting on `first` lets the search
+/// spread the enumeration over threads without storing every candidate.
+fn multisets_from(first: usize, n: usize, size: usize, mut visit: impl FnMut(&[usize])) {
+    if size == 0 || first >= n {
+        return;
+    }
+    let mut idx = vec![first; size];
+    if size == 1 {
+        visit(&idx);
+        return;
+    }
+    multisets(n - first, size - 1, |rest| {
+        for (k, &r) in rest.iter().enumerate() {
+            idx[k + 1] = first + r;
+        }
+        visit(&idx);
+    });
+}
+
 /// Every multiset of `size` items from 0..n, in non-decreasing order.
 fn multisets(n: usize, size: usize, mut visit: impl FnMut(&[usize])) {
     let mut idx = vec![0usize; size];
@@ -211,26 +233,39 @@ pub fn search(cfg: &SearchConfig) -> SearchResult {
     let inv = inverse_couplings_mz();
     let alpha_measured = 1.0 / inv[2];
 
-    // Stage 1: analytic one-loop screen, in parallel over all candidates.
-    let mut candidates: Vec<Vec<(usize, f64)>> = Vec::new();
+    // Stage 1: analytic one-loop screen. Candidates are generated inside each
+    // thread (split by their first item), so they are never all held in memory.
+    let evaluated = AtomicUsize::new(0);
+    let item_fields: Vec<Field> = items.iter().map(|&(i, m)| menu[i].field(1, m)).collect();
+    let sm = super::sm::standard_model();
+    let mut survivors: Vec<Vec<(usize, f64)>> = Vec::new();
     for size in 1..=cfg.max_fields {
-        multisets(items.len(), size, |idx| {
-            candidates.push(idx.iter().map(|&k| items[k]).collect());
-        });
-    }
-    let evaluated = candidates.len();
-    let survivors: Vec<Vec<(usize, f64)>> = candidates
-        .into_par_iter()
-        .filter(|picks| {
-            let mut fields = super::sm::standard_model();
-            fields.extend(picks.iter().map(|&(i, m)| menu[i].field(1, m)));
-            let running = Running::new(&fields);
-            predict(&running, (0, 1), 2, [0.0; 3]).map_or(false, |p| {
-                (p.alpha_predicted() / alpha_measured - 1.0).abs() <= cfg.screen
-                    && p.m_gut <= MAX_M_GUT
+        let batch: Vec<Vec<(usize, f64)>> = (0..items.len())
+            .into_par_iter()
+            .flat_map_iter(|first| {
+                let mut kept = Vec::new();
+                let mut count = 0;
+                let mut fields = sm.clone();
+                multisets_from(first, items.len(), size, |idx| {
+                    count += 1;
+                    fields.truncate(sm.len());
+                    fields.extend(idx.iter().map(|&k| item_fields[k].clone()));
+                    let running = Running::new(&fields);
+                    let pass = predict(&running, (0, 1), 2, [0.0; 3]).map_or(false, |p| {
+                        (p.alpha_predicted() / alpha_measured - 1.0).abs() <= cfg.screen
+                            && p.m_gut <= MAX_M_GUT
+                    });
+                    if pass {
+                        kept.push(idx.iter().map(|&k| items[k]).collect());
+                    }
+                });
+                evaluated.fetch_add(count, Ordering::Relaxed);
+                kept
             })
-        })
-        .collect();
+            .collect();
+        survivors.extend(batch);
+    }
+    let evaluated = evaluated.into_inner();
     let screened = survivors.len();
 
     // Stage 2: full prediction, proton decay and acceptance, in parallel.
@@ -355,6 +390,18 @@ mod tests {
         let mut n = 0;
         multisets(5, 3, |_| n += 1);
         assert_eq!(n, 35); // C(5 + 3 - 1, 3)
+    }
+
+    #[test]
+    fn test_multisets_from_partitions_multisets() {
+        // Splitting by first element visits exactly the same multisets, in the same order.
+        let mut all = Vec::new();
+        multisets(6, 3, |m| all.push(m.to_vec()));
+        let mut split = Vec::new();
+        for first in 0..6 {
+            multisets_from(first, 6, 3, |m| split.push(m.to_vec()));
+        }
+        assert_eq!(all, split);
     }
 
     #[test]
